@@ -1,0 +1,7 @@
+*.class
+*.pyc
+*.egg*
+*~
+*.log
+*.gz
+dist

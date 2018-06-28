@@ -1,0 +1,2 @@
+import hitk
+print('hello')
