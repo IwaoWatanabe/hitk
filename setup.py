@@ -5,6 +5,7 @@ import sys
 from setuptools import setup
 
 requirements = [
+    'futures',
 ]
 
 # IDLEで動作させるときには以下のコメントを外して実行します
