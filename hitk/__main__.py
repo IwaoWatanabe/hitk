@@ -32,10 +32,17 @@ def _load_apps(apps='apps.txt'):
   with open(os.environ.get('APPS', apps)) as fh:
     aplst.extend([_apdic(cn) for cn in fh if cn.strip() and not cn.startswith('#')])
     
-def _class_scan(mod):
-  for mn in dir(mod):
-    mm = getattr(mod, mn)
-    if type(mm) in (types.ClassType, types.TypeType): yield mm
+if sys.version_info < (3, 0):
+  def _class_scan(mod):
+    for mn in dir(mod):
+      mm = getattr(mod, mn)
+      if type(mm) in (types.ClassType, types.TypeType): yield mm
+else:
+  def _class_scan(mod):
+    for mn in dir(mod):
+      mm = getattr(mod, mn)
+      print( mn, type(mm))
+      if type(mm) == type(int): yield mm
 
 def _find_app(mod, lst):
   for mm in _class_scan(mod):

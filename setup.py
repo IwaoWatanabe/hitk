@@ -8,6 +8,9 @@ requirements = [
     'futures',
 ]
 
+if sys.platform == 'darwin':
+    requirements.append('PyObjC')
+    
 # IDLEで動作させるときには以下のコメントを外して実行します
 # for tt in ('develop', '--user'): sys.argv.append(tt)
 

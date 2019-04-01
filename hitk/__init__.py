@@ -46,6 +46,7 @@ else:
     Progressbar, Panedwindow, Menubutton
 
   def _ucs(tt): return tt
+  unicode = str
 
 trace = print
 ui = __import__(__name__)
@@ -348,7 +349,7 @@ class _Toplevel(tk.Toplevel):
         try:
             root.winfo_id()
         except TclError as e:
-            if verbose: trace('TRACE: %s (%s)' % (e, e.__class__.__name__), file=cli.err)
+            if verbose: trace('TRACE: %s (%s)' % (e, e.__class__.__name__), file=sys.err)
             # root が利用できなくなっているようだから置き換える
             root = self._root()
             root.update()
@@ -830,9 +831,12 @@ class App(UIClient):
 
     if platform == 'darwin':
       # アプリケーション（自身）を手前に持ってくる
-      from Cocoa import NSRunningApplication, NSApplicationActivateIgnoringOtherApps
-      app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
-      app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+      try:
+        from Cocoa import NSRunningApplication, NSApplicationActivateIgnoringOtherApps
+        app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
+        app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+      except Exception as e:
+        if verbose: trace('TRACE: %s (%s)' % (e, e.__class__.__name__), file=sys.err)
 
     root.mainloop() # イベントループに入る
     if verbose: trace('done.')
