@@ -20,16 +20,25 @@ if sys.platform == 'win32':
 # for tt in ('develop', '--user'): sys.argv.append(tt)
 
 setup(name='hitk',
-      version='0.1',
+      version='0.1.1',
       description=u'Tkinterを利用するpythonのサンプルコードが含まれます',
       author='Iwao Watanabe',
       author_email='iwaowatanabe+hitk@gmail.com',
       url='https://github.com/IwaoWatanabe/hitk',
       packages=['hitk'],
       install_requires=requirements,
+      license="MIT",
+      classifiers=[
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.7',
+        'License :: OSI Approved :: MIT License',
+        ],
       zip_safe=True,
      )
 
-# python 3.6 には setuptools が含まれないことがあるので、次の要領で導入します
+# python 3.4 には setuptools が含まれないことがあるので、次の要領で導入します
 # curl https://bootstrap.pypa.io/ez_setup.py | python3 - --user
 
