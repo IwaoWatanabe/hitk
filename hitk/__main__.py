@@ -41,7 +41,6 @@ else:
   def _class_scan(mod):
     for mn in dir(mod):
       mm = getattr(mod, mn)
-      print( mn, type(mm))
       if type(mm) == type(int): yield mm
 
 def _find_app(mod, lst):

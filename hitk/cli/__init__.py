@@ -30,6 +30,8 @@ if sys.version_info < (3, 0):
 else:
     import configparser
     from queue import Queue, Empty
+    unicode = str
+
 
 verbose = os.environ.get("DEBUG", False)
 
@@ -155,16 +157,15 @@ threading.RLock() と同じような使い方ができる。
 
 _sysenc = sys.getfilesystemencoding()
 
-try:
+if sys.version_info < (3, 0):
     def _encode(tt):
         return tt.encode(_sysenc) if type(tt) == unicode else tt
     def _decode(tt):
-        return tt.decode(_sysenc) if type(tt) == str else tt
+        return tt.decode(_sysenc, 'replace') if type(tt) == str else tt
     def _isUCS(tt): return type(tt) == unicode
     pyver = 2
 
-except NameError:
-    # for python 3.x
+else:
     def _encode(tt): return tt
     def _decode(tt): return tt
     def _isUCS(tt): return type(tt) == str
@@ -1295,7 +1296,7 @@ class CommandDispatcher(cmd.Cmd):
 
 def split_line(line, useGlob=True, **opts):
     "行テキストをパラメータ分割する"
-    args = [ decode(tt) for tt in shlex.split(line) ]
+    args = [ _decode(tt) for tt in shlex.split(line) ]
     if 'use_glob' in opts: useGlob = opts['use_glob']
     if useGlob: args = glob(args)
 
@@ -1331,10 +1332,6 @@ def glob(args, base=""):
 
 
 
-def decode(tt):
-    return tt.decode(_sysenc, 'replace') if type(tt) == str else tt
-
-
 def expand_path(path):
     dp = "./" if not path else os.path.expanduser(path) if path.startswith('~') else path
     return dp
@@ -1343,8 +1340,8 @@ class _Local_path_handler:
     "ローカルファイルシステムのパスを入手する"
     def fetch_complete_list(self, path, fname):
         dp = "./" if not path else os.path.expanduser(path) if path.startswith('~') else path
-        dc = map(decode, os.listdir(dp))
-        fname = decode(fname) if fname else ''
+        dc = map(_decode, os.listdir(dp))
+        fname = _decode(fname) if fname else ''
         return dc, fname
 
 
@@ -1441,9 +1438,9 @@ def show_list(lst, outfh=None):
     ws = 1
     for ent in lst: ws = max(ws, mbcslen(ent))
     ws += 1
-    cols = columns / ws
+    cols = int(columns / ws)
     llen = len(lst)
-    step = (llen + (cols - 1)) / cols
+    step = int((llen + (cols - 1)) / cols)
 #    print ws, "cols:", columns, "lines:", lines, "step:",step
     idx = 0
     row = 0
