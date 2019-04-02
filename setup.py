@@ -5,12 +5,17 @@ import sys
 from setuptools import setup
 
 requirements = [
-    'futures',
 ]
+
+if sys.version_info < (3, 0):
+    requirements.append('futures')
 
 if sys.platform == 'darwin':
     requirements.append('PyObjC')
-    
+
+if sys.platform == 'win32':
+    requirements.append('pyreadline')
+
 # IDLEで動作させるときには以下のコメントを外して実行します
 # for tt in ('develop', '--user'): sys.argv.append(tt)
 
