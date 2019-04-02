@@ -869,6 +869,11 @@ class App(UIClient):
   def dispose(self):
     self.cc.dispose()
 
+  def create_menu_bar(self):
+    if hasattr(self, 'menubar_items'):
+      return self.find_menu(self.menubar_items)
+
+
 _frame_count = 0
 
 verbose = int(os.environ.get('VERBOSE', '0'))
@@ -937,8 +942,36 @@ def entry_focus(ent):
   ent.icursor(END)
   return ent
 
+
 def entry_store(ent, text):
   pass
+
+
+def register_shortcut(target, shortcut):
+  """ポップアップメニューを登録する"""
+  if not shortcut: return
+
+  def popup(event):
+    shortcut.tk_popup(event.x_root, event.y_root)
+
+  def popup_app(event):
+    shortcut.tk_popup(event.widget.winfo_rootx(), event.widget.winfo_rooty())
+    return 'break'
+
+  target.bind('<Control-Button-1>', popup)
+  target.bind('<Button-%d>' % (2 if platform == 'darwin' else 3), popup)
+  target.bind('<Shift-F10>', popup_app)
+  try:
+    target.bind('<App>', popup_app)
+  except:
+    pass  # for cygwin/X
+  try:
+    target.bind('<Menu>', popup_app)
+  except:
+    pass
+  # if need_unpost: shortcut.bind('<FocusOut>', lambda ev, wi=shortcut: wi.unpost())
+  return target
+
 
 def register_entry_popup(ent):
   pass
