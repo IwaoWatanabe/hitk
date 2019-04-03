@@ -198,7 +198,7 @@ def find_font(name):
         if font: return font
     try:
         font = tkfont.nametofont(name)
-        trace('name of font', font, type(font))
+        if verbose: trace('name of font', font, type(font))
         return font
     except TclError:
         enc = sys.getfilesystemencoding()
@@ -215,7 +215,7 @@ def find_font(name):
         weight = 'bold' if w == 'b' or w == 'bold' else 'normal'
         slant = 'italic' if s == 'i' or w == 'italic' else 'roman'
         font = tkfont.Font(name=name, family=family, size=size, weight=weight, slant=slant)
-        trace('tkfont', font, type(font))
+        if verbose: trace('tkfont', font, type(font))
         _save_font(font)
         return font
 
@@ -467,15 +467,52 @@ class _AsyncTask:
     """ EDTでダイアログを表示する"""
     show_error(self.msg, '%s - Internal Error' % self.error.__class__.__name__)
 
+
+def application_name(app):
+  """アプリケーション名の入手"""
+  app_name = app.application_name if hasattr(app, "application_name") else \
+    app.title if hasattr(app, "title") else None
+  if not app_name: app_name = app.__class__.__name__
+  trace(app_name)
+  return app_name
+
+
+def _entry_all_select(ev):
+  ent = ev.widget
+  ent.select_range(0, END)
+  ent.icursor(END)
+  return 'break'
+
+def _text_all_select(ev):
+  buf = ev.widget
+  buf.tag_remove(SEL, '1.0', END)
+  buf.tag_add(SEL, '1.0', END)
+  buf.mark_set(INSERT, '1.0')
+  buf.see(INSERT)
+  return 'break'
+
+def _top_bind(top):
+  top.bind_class('Entry', '<Control-a>', _entry_all_select)
+  top.bind_class('TEntry', '<Control-a>', _entry_all_select)
+  top.bind_class('TCombobox', '<Control-a>', _entry_all_select)
+  top.bind_class('Text', '<Control-a>', _text_all_select)
+
+  if platform == 'darwin':
+    top.bind_class('Entry', '<Command-a>', _entry_all_select)
+    top.bind_class('TEntry', '<Command-a>', _entry_all_select)
+    top.bind_class('TCombobox', '<Command-a>', _entry_all_select)
+    top.bind_class('Text', '<Command-a>', _text_all_select)
+
     
 class _TkAppContext(_AppContext):
 
-  def execute(cmd, *closure, **kwargs):
+  def execute(self, cmd, *closure, **kwargs):
     """タスクをスレッド・プール経由で動作させる """
     global _executor, _polling_timer
     if not _executor: _executor = concurrent.futures.ThreadPoolExecutor(max_workers=_max_workers)
     if not _polling_timer: _polling_timer = root.after(_polling_interval, _polling_queues)
-    proc = kwargs.get('proc', self.apps[-1].execute_task)
+    proc = kwargs.get('proc', self._apps[-1].execute_task)
+    if verbose: trace('async proc', proc, '\n', _executor)
     task = _AsyncTask(cmd, proc, closure, kwargs)
     task.app = self
     _executor.submit(self._run_task, task)
@@ -484,6 +521,7 @@ class _TkAppContext(_AppContext):
     # 別スレッドで動作する
     th = threading.currentThread()
     th.task = task
+    trace('async call', task)
     task.call()
 
   def invoke_lator(self, cmd, *closure, **kwds):
@@ -509,7 +547,8 @@ class _TkAppContext(_AppContext):
     self.menu = {}  # メニュー・アイテム名でメニュー・アイテムが引ける
     self._menu_map = {}  # メニュー名でメニューインスタンスを引ける
     self._log_level = INFO
-
+    self._dialogs = {} # 関連するダイアログのインスタンスを入手する
+    
   def log(self, msg, *args, **kwargs):
     """ログ出力のための簡易メソッド。
 デフォルトはINFOレベル
@@ -525,8 +564,47 @@ class _TkAppContext(_AppContext):
     app.create_widgets(fr)
     bar = app.create_menu_bar()
     if bar: top.configure(menu=bar) # メニューバーがあれば設定する
+    self.update_title(app)
     return top
 
+  def create_dialog(self, AppClass, *opts, **kwd):
+    """ダイアログとして利用するMuClientをインスタンス化する
+    AppClass のインスタンスが返る
+    """
+    master = kwd.pop('master', self.top)
+
+    if opts or kwd:
+        app = AppClass(*opts, **kwd)
+    else:
+        app = AppClass()
+
+    cc = self.__class__()
+    cc._apps = []
+    cc.top = top = _Toplevel(master)
+    app.cc = cc
+    fr = Frame(top).pack(side='top', fill=BOTH, expand=1)
+    app.create_widgets(fr)
+
+    cc.update_title(app)
+    top.focus()
+    top._set_transient(master)
+    _top_bind(top)
+    return app
+
+  def find_dialog(self, name, AppClass, master=None, *opts, **kwd):
+    """ダイアログとして利用するUIClientを入手する
+        AppClass のインスタンスが返る
+    """
+    if not master: master = self.top
+    dig = self._dialogs.get(name, None)
+    if dig:
+      if not isinstance(dig, AppClass):
+        raise ValueError('dialog is not %s' % AppClass)
+    else:
+      self._dialogs[name] = dig = self.create_dialog(AppClass, master=master, *opts, **kwd)
+      
+    return dig
+  
   def remove_client(self, app=None, in_destroy=False):
     """ 管理対象のクライアントを削除する"""
     if not app: app = self._apps[-1]
@@ -548,6 +626,12 @@ class _TkAppContext(_AppContext):
     self.top.configure(menu=app.menu_bar)
     self.update_title(app)
 
+  def update_title(self, app, msg=None):
+    app_name = application_name(app)
+    if not msg: msg = app.get_title() if hasattr(app, "get_title") else app.title
+    msg = "%s - %s" % (msg, app_name) if msg else app_name
+    self.top.title(msg)
+    
   def _release(self, in_destroy=True):
     """管理対象のクライアントのreleaseを呼び出す"""
     for app in reversed(self._apps):
@@ -665,6 +749,9 @@ param: entries メニュー項目を定義した配列
   def close(self):
     self.remove_client()
 
+  def hide(self): self.top.hide()
+  def show(self): self.top.show()
+    
   def dispose(self):
     while self._apps:
       self.remove_client()
@@ -813,7 +900,7 @@ class UIClient(object):
 
   def execute_task(self, cmd, *closure, **option):
     '''別スレッドで動作する処理'''
-    pass
+    trace('execute', cmd, closure)
 
   title = None # このプロパティからタイトルを入手する
   cc = None # このプロパティに共通機能を提供するインスタンスを差し込む
@@ -823,21 +910,11 @@ class UIClient(object):
 
     
 class App(UIClient):
-  'GUIアプリケーションのユーザコードが継承するクラス'
+  """GUIアプリケーションのユーザコードが継承するクラス"""
 
   @classmethod
   def run(Cls, args=()):
     Cls.start(args)
-
-    if platform == 'darwin':
-      # アプリケーション（自身）を手前に持ってくる
-      try:
-        from Cocoa import NSRunningApplication, NSApplicationActivateIgnoringOtherApps
-        app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
-        app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
-      except Exception as e:
-        if verbose: trace('TRACE: %s (%s)' % (e, e.__class__.__name__), file=sys.err)
-
     root.mainloop() # イベントループに入る
     if verbose: trace('done.')
 
@@ -847,6 +924,7 @@ class App(UIClient):
     cc = _TkAppContext()
     top = cc._create_app(app)
     top.lift()
+    top.after_idle(top.tkraise) # ウィンドウを手前にもってくる
               
   def bind_proc(self, cmd, proc=None):
     """ キー割り当てに利用する手続きを返す"""
@@ -873,7 +951,9 @@ class App(UIClient):
     if hasattr(self, 'menubar_items'):
       return self.find_menu(self.menubar_items)
 
-
+  def execute_task(self, cmd, *closure, **option):
+    trace('execute1', cmd, closure, file=sys.stderr)
+    
 _frame_count = 0
 
 verbose = int(os.environ.get('VERBOSE', '0'))
