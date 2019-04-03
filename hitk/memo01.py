@@ -1,10 +1,11 @@
 # coding: utf-8
 
 import platform, sys
-from hitk import Frame, Scrollbar, Text, \
-    INSERT, END, SEL, SEL_FIRST, SEL_LAST, ui, tk, trace
 
-class MemoApp(ui.App):
+from hitk import Frame, Scrollbar, Text, \
+    INSERT, END, SEL, SEL_FIRST, SEL_LAST, ui, dialogs, tk, trace
+
+class MemoApp01(ui.App):
   def create_widgets(self, base, rows=15, column=60):
     tk.Text(base, width=column, height=rows,
             undo=1,maxundo=1000).pack(fill='both', expand=1)
@@ -17,21 +18,42 @@ def _select_present(buf):
   return not pl == pf
 
 
-class MemoApp01(ui.App):
+class TextViewApp(ui.App):
   
   menubar_items = [
     'menubar;',
     [ 'file;ファイル(&F)',
       'new;新規にウィンドウを開く(&N);ctrl-N',
       'open;ファイルを開く(&O) ..;ctrl-O',
-      "save;ファイルに保存する(&S);ctrl-S",
+      '-',
+      [
+        'encoding;日本語文字コード(&E)',
+        '*enc.iso-2022-jp;JIS (ISO-2022-JP)',
+        '*enc.sjis;Shift JIS',
+        '*enc.euc_jp;EUC',
+        '*enc.utf-8;UTF-8',
+      ],
       '-',
       'close;閉じる(&C);ctrl-W',
-      ],
+    ],
+    [ 'edit;編集(&E)',
+      'copy;選択した範囲のテキストをクリップボードに複製(&C);ctrl-C',
+      'select-all;全て選択する(&A);ctrl-A',
+      '-',
+      'goto-line;指定する行にカレットを移動(&G)..;ctrl-L',
+      'find;テキストを検索(&F) ..;ctrl-F',
+    ],
+    [ 'view;表示(&V)',
+      '+wrap;行を折り返す(&W)',
+      '-',
+      'font;フォントの選択(&F)..',
+      'bigger;大きく(&+);ctrl-+',
+      'smaller;小さく(&-);ctrl--',
+    ],
     [ 'help;ヘルプ(&H)',
       'about;このアプリについて(&A);;idlelib/Icons/python.gif',
-      ],
-    ]
+    ],
+  ]
 
   shortcut_items = [
     'text-shortcut;',
@@ -49,8 +71,7 @@ class MemoApp01(ui.App):
   text_file_types = [
     ('Plain Text', '*.txt'),
     ('All Files', '*'),
-    ]
-
+  ]
 
   def perform(self, cmd, *args):
     ''' メニュー選択により動作する機能 '''
@@ -71,15 +92,51 @@ class MemoApp01(ui.App):
       buf.see(INSERT)
       return 'break'
 
+    elif 'goto-line' == cmd:
+      ln = int(buf.index(END).split('.')[0])
+      msg = 'Input Line Number 1..%d' % ln
+      msg = '移動行を入力ください (範囲 1..%d)' % ln
+      tt = cc.input_text(msg, 'line-number')
+      if not tt: return
+      idx = '%d.0' % int(tt)
+      buf.mark_set(INSERT, idx)
+      buf.see(idx)
+      buf.focus_set()
+      return
+    
+    elif 'bigger' == cmd:
+      return dialogs.adjust_font_size(self, dir=1)
+
+    elif 'smaller' == cmd:
+      return dialogs.adjust_font_size(self, dir=-1)
+
     elif 'open' == cmd:
       tf = cc.ask_open_file(filetypes=self.text_file_types)
       if not tf: return
       trace(tf)
+      cc.execute('load-text', tf, self.encoding)
       
-    elif 'save' == cmd:
-      tf = cc.ask_save_file(filetypes=self.text_file_types, defaultextension='.txt')
-      trace(tf)
-      
+    elif 'find' == cmd:
+      try: text = buf.get(SEL_FIRST, SEL_LAST)
+      except tk.TclError: text = ''
+
+      fd = cc.find_dialog('find', dialogs.FindDialog)
+      fd.open(text, self)
+      idx = buf.index(SEL_FIRST)
+      self._mark_find(idx, text)
+      return 'break'
+
+    elif 'font' == cmd:
+      fd = cc.find_dialog('font', dialogs.FontDialog)
+      fd.open(self)
+      return 'break'
+    
+    elif 'wrap' == cmd:
+      flag = self.wrap.get()
+      wrap = 'word' if flag == 1 else 'none'
+      buf.config(wrap=wrap)
+      return
+    
     elif 'close' == cmd:
       self.close()
       
@@ -90,9 +147,27 @@ class MemoApp01(ui.App):
       cc.show_info('Python version: %s\nTK version: %s\n' % (
           sys.version, tk.TkVersion), 'about')
 
+  encoding = None
+  
+  @property
+  def font(self):
+    buf = self.buf
+    fn = buf.cget('font')
+    font = ui.find_font(fn)
+    return font
+  
+  @font.setter
+  def font(self, font):
+    if type(font) == str: font = ui.find_font(font)
+    buf = self.buf
+    buf.config(font=font)
+    
+  def _adjust_font_size(self, ev):
+    # マウスホイールでフォントサイズの調整
+    return dialogs.adjust_font_size(self, event=ev)
+  
   def create_widgets(self, base, columns=30, rows=5):
     cc = self.cc
-
     buf = tk.Text(base, width=columns, height=rows,
                   undo=1,maxundo=1000).pack(fill='both', expand=1)
     self.buf = buf
@@ -109,10 +184,14 @@ class MemoApp01(ui.App):
       ('<Control-a>', 'select-all'),
       ('<Control-c>', 'copy'),
       ('<Control-o>', 'open'),
-      ('<Control-s>', 'save'),
+      ('<Control-l>', 'goto-line'),
+      ('<Control-+>', 'bigger'),
       ('<Control-w>', 'close'),
       ): cc.bind(cond, self.bind_proc(cmd))
 
+    cc.bind('<MouseWheel>', self._adjust_font_size, '+')
+    cc.bind('<Button-4>', self._adjust_font_size, '+')
+    cc.bind('<Button-5>', self._adjust_font_size, '+')
 
 
 class EventViewApp(ui.App):
@@ -175,4 +254,4 @@ class EventViewApp(ui.App):
     elif 'clear' == cmd: buf.delete('1.0', END)
     
 
-if __name__ == '__main__': MemoApp.run()
+if __name__ == '__main__': MemoApp01.run()
