@@ -5,7 +5,7 @@ from hitk import trace, ui
 
 app_classes = [
     'hitk.hello.HelloApp',
-    'hitk.memo01.MemoApp',
+    'hitk.memo01.MemoApp01',
 ]
 
 def _find_class(hn):
@@ -57,7 +57,8 @@ def _load_apps(apps='apps.txt'):
       except ImportError:
         aplst.extend([_apdic(tt)])
 
-_load_apps()
+try: _load_apps()
+except Exception as e: trace(e)
 
 apdic = { an: (an, cn) for an, cn in aplst }
                          
