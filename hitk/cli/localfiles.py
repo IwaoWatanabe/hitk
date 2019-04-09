@@ -5,15 +5,14 @@
 
 """
 
-import sys, os, re, stat, shutil, subprocess
+import logging, os, re, shutil, stat, subprocess, sys
 from glob import glob as _glob;
 from time import time as now
 from datetime import datetime as _dt
 import tempfile as _tempfile
 from hitk import cli
 
-log = None
-
+log = logging.getLogger(__name__)
 
 class _TempSession(object):
   """
@@ -225,7 +224,7 @@ forceがFalseの場合はファイルは空である必要がある"""
   dropFolder = drop_folder
   copyFile = copy_file
 
-  def readlines(self, name, size=None, skip=0, lines=None, \
+  def readlines(self, name, size=None, skip=0, step=1, lines=None, \
                     encoding = 'utf-8-sig', errors='strict', ws='\r\n'):
     """テキストを行単位で読み込んで返すジェネレータ。末尾の空白は除く
         サフィックスが.gz であれば、gzip展開しながら読み込む
@@ -267,10 +266,29 @@ forceがFalseの場合はファイルは空である必要がある"""
           yield line.rstrip(ws)
           line = _readline()
       else:
-        while line:
-          yield line.rstrip(ws)
-          line = _readline()
+        if step <= 1:
+          while line:
+            yield line.rstrip(ws)
+            line = _readline()
+        else:
+          buf = []
+          while line:
+            buf.append(line.rstrip(ws))
+            ct += 1
+            if ct > step:
+              buf.append('')
+              text = '\n'.join(buf)
+              buf = []
+              yield text
+              ct = 0
+            line = _readline()
 
+          if buf:
+            buf.append('')
+            text = '\n'.join(buf)
+            buf = []
+            yield text
+            
     finally: fh.close()
 
 
