@@ -3,11 +3,11 @@
 """　パッケージで提供するカスタム・ダイアログを定義
 """
 
-import calendar
+import calendar, re
 from datetime import datetime as _dt
 from hitk import ui, Button, Checkbutton, Combobox, Entry, Frame, Label, LabelFrame, Listbox, \
   Radiobutton, Scrollbar, Treeview, BooleanVar, IntVar, StringVar, tkfont, \
-  entry_store, item_caption, END, ui, trace
+  entry_focus, entry_store, item_caption, END, INSERT, SEL, SEL_FIRST, SEL_LAST, ui, trace
 
 
 class FindDelegate():
@@ -535,11 +535,11 @@ class FindDialog(ui.App):
       btn = Button(fr, text=label, underline=pos, command=self._do_hilight)
       btn.pack(side='left', padx=3, pady=3)
 
-      cap = '&Close'
-      cap = '閉じる(&C)'
-      pos, label = item_caption(cap)
-      btn = Button(fr, text=label , underline=pos, command=self.cc.hide)
-      btn.pack(side='left', padx=3, pady=3)
+    cap = '&Close'
+    cap = '閉じる(&C)'
+    pos, label = item_caption(cap)
+    btn = Button(fr, text=label , underline=pos, command=self.cc.hide)
+    btn.pack(side='left', padx=3, pady=3)
 
     for ev, cmd in (
         ('<Alt-n>', 'search'),
@@ -554,7 +554,7 @@ class FindDialog(ui.App):
     for bk, proc in blist: cc.bind(bk, proc)
 
   def open(self, text=None, delegate=None, with_replace=True):
-    trace('open', self.fkey.ent, text)
+    #trace('open', self.fkey.ent, text)
     self.delegate = delegate if delegate else _FindDelegate()
     if not with_replace:
       self.replaceFrame.pack_forget()
@@ -839,3 +839,93 @@ if __name__ == '__main__':
   FontDialog.start()
   CalendarDialog.run()
 
+
+
+class TextFind(FindDelegate):
+  """テキストの検索の仕掛けを定義する MixIn"""
+
+  def _get_match_length(self, idx, pattern, nocase=None):
+    reflag = re.IGNORECASE if nocase else 0
+    prog = re.compile(pattern, reflag)
+    text = self.buf.get(idx, END)
+    # print "re:", pattern
+    res = prog.search(text)
+    if res: return len(res.group(0))
+    return 1
+
+  def _mark_find(self, idx, term, forward=1, nocase=None, regexp=None):
+    buf = self.buf
+    # print "mark:", idx
+    length = self._get_match_length(idx, term, nocase) if regexp else len(term)
+    lastidx = '%s+%dc' % (idx, length)
+    buf.tag_add('found', idx, lastidx)
+    buf.tag_remove(SEL, '1.0', END)
+    buf.tag_add(SEL, idx, lastidx)
+    if forward:
+      buf.mark_set(INSERT, lastidx)
+    else:
+      buf.mark_set(INSERT, idx)
+    buf.tag_config('found', background='gray')
+    buf.see(INSERT)
+
+    self._last_find_condition = dict(term=term, forward=forward, nocase=nocase, regexp=regexp)
+    return True
+
+  def search_forward(self, term, nocase=True, regexp=None):
+    """文末方向に検索する"""
+    buf = self.buf
+    buf.tag_remove('found', '1.0', END)
+    fidx = buf.index(INSERT)
+    idx = buf.search(term, fidx, nocase=nocase, regexp=regexp, forwards=True)
+    if not idx:
+      self.cc.set_status('%s not found.', term)
+      return False
+    return self._mark_find(idx, term, 1, nocase, regexp)
+
+  def search_backward(self, term, nocase=True, regexp=None):
+    """文頭末方向に検索する"""
+    buf = self.buf
+    buf.tag_remove('found', '1.0', END)
+
+    fidx = buf.index(INSERT)
+    idx = '%s-%dc' % (fidx, len(term))
+    idx = buf.search(term, idx, nocase=nocase, regexp=regexp, backwards=True)
+    if not idx:
+      self.cc.set_status('%s not found.', term)
+      return False
+    return self._mark_find(idx, term, 0, nocase, regexp)
+
+  def hilight(self, term, ignoreCase=True, tag='hilight'):
+    """検索した対象をハイライト表示する"""
+    buf = self.buf
+    if not buf: return
+    
+    buf.tag_remove(tag, '1.0', END)
+    idx = '1.0'
+    ct = 0
+    while 1:
+      idx = buf.search(term, idx, nocase=ignoreCase, stopindex=END)
+      if not idx: break
+      lastidx = '%s+%dc' % (idx, len(term))
+      buf.tag_add(tag, idx, lastidx)
+      idx = lastidx
+      ct += 1
+
+    buf.tag_config(tag, background='yellow')
+    self.cc.set_status("%d pattern '%s' found.", ct, term)
+
+  def replace_term(self, term):
+    """選択対象を置き換える"""
+    buf = self.buf
+    buf.delete(SEL_FIRST, SEL_LAST)
+    idx = buf.index(INSERT)
+    buf.insert(INSERT, term)
+    self._mark_find(idx, term)
+
+  def end_search(self):
+    """検索のマークを消す"""
+    buf = self.buf
+    buf.tag_remove('found', '1.0', END)
+    buf.tag_remove('hilight', '1.0', END)
+
+    
