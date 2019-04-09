@@ -58,7 +58,7 @@ def _load_apps(apps='apps.txt'):
         aplst.extend([_apdic(tt)])
 
 try: _load_apps()
-except Exception as e: trace(e)
+except Exception as e: trace('WARN: %s' % e)
 
 apdic = { an: (an, cn) for an, cn in aplst }
                          
