@@ -5,9 +5,8 @@
 """
 
 from __future__ import print_function
-import os, re, sys, weakref
+import functools, os, re, sys, threading, weakref, zipfile
 import concurrent.futures
-import functools
 from logging import DEBUG, INFO, WARN, WARNING, ERROR, FATAL, CRITICAL
 from traceback import format_exc
 
@@ -21,7 +20,9 @@ if sys.version_info < (3, 0):
   from Tkinter import TclError, TOP, BOTTOM, LEFT, RIGHT, BOTH, \
     INSERT, END, SEL, SEL_FIRST, SEL_LAST, NORMAL, DISABLED, \
     Menu, Listbox, Text, Canvas, PhotoImage, PanedWindow, \
-    StringVar, IntVar, DoubleVar, BooleanVar
+    StringVar, IntVar, DoubleVar, BooleanVar, Pack, Grid, Place
+  from ScrolledText import ScrolledText
+  tk.ScrolledText = ScrolledText
 
   from ttk import Label, Button, Entry, Checkbutton, Radiobutton, \
     Scrollbar, Notebook, Combobox, Frame, OptionMenu, LabelFrame, Treeview, \
@@ -39,8 +40,11 @@ else:
   from tkinter import TclError, TOP, BOTTOM, LEFT, RIGHT, BOTH, \
     INSERT, END, SEL, SEL_FIRST, SEL_LAST, NORMAL, ACTIVE, DISABLED, \
     Menu, Listbox, Text, Canvas, PhotoImage, PanedWindow, \
-    StringVar, IntVar, DoubleVar, BooleanVar
+    StringVar, IntVar, DoubleVar, BooleanVar, Pack, Grid, Place
 
+  from tkinter.scrolledtext import ScrolledText
+  tk.ScrolledText = ScrolledText
+  
   from tkinter.ttk import Label, Button, Entry, Checkbutton, Radiobutton, \
     Scrollbar, Notebook, Combobox, OptionMenu, Frame, LabelFrame, Treeview, \
     Progressbar, Panedwindow, Menubutton
@@ -180,17 +184,52 @@ def input_text(prompt, title='input', **options):
     """ テキスト入力のダイアログ表示 """
     return simpledialog.askstring(title, prompt, **options)
 
+  
+def ask_open_file(multiple=False, **options):
+  """ ローカル・ファイルを選択させる
+    optionsで指定できるパラメータ
+  
+    defaultextension - 補足サフィックス
+    parent - 親ウィンドウ
+    title - ダイアログの見出し
+    initialdir - 初期ディレクトリ
+    mustexist - 存在するディレクトリを選択させる場合はtrue
+    filetypes: sequence of (label, pattern) tuples.
+  """
+  if platform == 'darwin': options.pop('filetypes', None)
+  # macOSではファイルタイプの指定ができない（固まる）
+  if multiple: return filedialog.askopenfilenames(**options)
+  initialdir = options.pop('initialdir', '')
+  if initialdir: options['initialdir'] = initialdir
+  return filedialog.askopenfilename(**options)
+  
 
-def ask_open_file(**options):
-    """ ファイルを選択する """
-    return filedialog.askopenfilename(**options)
+def ask_save_file(**options):
+  """ 保存用にローカル・ファイルを選択させる
+    optionsで指定できるパラメータ
+  
+    defaultextension - 補足サフィックス
+    parent - 親ウィンドウ
+    title - ダイアログの見出し
+    initialdir - 初期ディレクトリ
+    initialfile - 初期選択ファイル
+    mustexist - 存在するディレクトリを選択させる場合はtrue
+    filetypes: sequence of (label, pattern) tuples.
+"""
+  if platform == 'darwin': options.pop('filetypes', None)
+  # macOSではファイルタイプの指定ができない（固まる）
+  initialdir = options.pop('initialdir', '')
+  if initialdir: options['initialdir'] = initialdir
+  return filedialog.asksaveasfilename(**options)
 
 
 fonts = weakref.WeakValueDictionary()
 
 
 def find_font(name):
-    """ family-size-weight-slant の形で指定するフォントをロードする。
+    """
+tkが認識する形式のフォント名を渡して、tkfontオブジェクトを入手する。
+あるいは、family-size-weight-slant の形で指定するフォントをロードする。
 過去にロードしていれば、同じインスタンスを返す
 """
     if name in fonts:
@@ -300,7 +339,7 @@ class StringRef(object):
     
   
 # 別スレッドからGUI処理を受け取る間隔(ms)
-_polling_interval = 200
+_polling_interval = 300
 
 _polling_timer = None
 
@@ -323,14 +362,15 @@ def _polling_queues():
 
   # キューから処理対象の手続きを取り出して、Tkが暇なときに動作するキューに詰め込み直す
   while True:
-    # trace("_polling_queues ..")
+    #trace("_polling_queues ..", file=sys.stderr)
     try:
       task = _app_queue.get(block=False)
     except Empty:
       break
     else:
       root.after_idle(task)
-
+      if verbose: trace('#idel task', task)
+      
   _polling_timer = root.after(_polling_interval, _polling_queues)
 
 
@@ -453,16 +493,19 @@ class _AsyncTask:
   def call(self):
     # このメソッドはGUIとは別のスレッドで動作する
     try:
-      self.proc(self.cmd, *self.closure, **self.kwds)
+      if verbose: trace('#task call', self.cmd, self.proc, self.closure, self.kwds, file=sys.stderr)
+      rc = self.proc(self.cmd, *self.closure, **self.kwds)
       self.flag = True
+      return rc
     except Exception as e:
-      trace('proc%s' % self.proc, file=sys.stderr)
       # show_error(msg)　# そのまま表示しようとすると固まった
       msg, title = trace_text(e)
+      trace(msg, self.proc, file=sys.stderr)
       self.error = e
       self.msg = msg
       _app_queue.put(self.notify)
-      
+      return e
+    
   def notify(self):
     """ EDTでダイアログを表示する"""
     show_error(self.msg, '%s - Internal Error' % self.error.__class__.__name__)
@@ -509,20 +552,21 @@ class _TkAppContext(_AppContext):
   def execute(self, cmd, *closure, **kwargs):
     """タスクをスレッド・プール経由で動作させる """
     global _executor, _polling_timer
-    if not _executor: _executor = concurrent.futures.ThreadPoolExecutor(max_workers=_max_workers)
+    if not _executor:
+      _executor = concurrent.futures.ThreadPoolExecutor(max_workers=_max_workers, thread_name_prefix='tke')
     if not _polling_timer: _polling_timer = root.after(_polling_interval, _polling_queues)
     proc = kwargs.get('proc', self._apps[-1].execute_task)
-    if verbose: trace('async proc', proc, '\n', _executor)
+    if verbose: trace('async proc', proc, _max_workers, '\n', _executor)
     task = _AsyncTask(cmd, proc, closure, kwargs)
     task.app = self
-    _executor.submit(self._run_task, task)
+    res = _executor.submit(self._run_task, task)
 
   def _run_task(self, task):
     # 別スレッドで動作する
+    if verbose: trace('async call', task)
     th = threading.currentThread()
     th.task = task
-    trace('async call', task)
-    task.call()
+    return task.call()
 
   def invoke_lator(self, cmd, *closure, **kwds):
     """GUIの処理キューに処理を登録する"""
@@ -530,7 +574,7 @@ class _TkAppContext(_AppContext):
     task = _AsyncTask(cmd, th.task.proc, closure, kwds)
     task.app = self
     _app_queue.put(task.call)
-    # trace("#invoke_lator ", cmd, task.proc, closure)
+    if verbose: trace('#invoke_lator', cmd, task.proc, closure, kwds)
 
   def invoke_and_wait(self, cmd, *closure, **kwds):
     """GUIに処理を依頼して完了するまで待つ"""
@@ -539,6 +583,7 @@ class _TkAppContext(_AppContext):
     task = _AsyncTask(cmd, th.task.proc, closure, kwds)
     task.app = self
     _app_queue.put(task.call)
+    if verbose: trace('#invoke_and_wait', cmd, task.proc, closure, kwds)
     while not task.flag: sleep(0.2)
 
   def __init__(self):
@@ -556,13 +601,21 @@ class _TkAppContext(_AppContext):
     level = kwargs.pop('level', self._log_level)
     trace(msg % args if '%' in msg else msg, file=sys.stderr)
 
+  def _setup_widget(self, wi, level='', dump=False):
+    setup_theme(wi)
+    if dump: trace('%s' % level, wi.__class__.__name__)
+    for w2 in wi.winfo_children():
+      self._setup_widget(w2, level=level + ' ', dump=dump)
+
   def _create_app(self, app):
     self._apps = [app]
     self.top = top = _Toplevel()
     app.cc = self  # ここで共通機能を提供するインスタンスを差し込む
     fr = Frame(top).pack(side='top', fill=BOTH, expand=1)
     app.create_widgets(fr)
-    bar = app.create_menu_bar()
+    self._setup_widget(fr, dump=os.environ.get('DUMP_WIDGET', ''))
+    fr.focus_set()
+    bar = app.create_menubar()
     if bar: top.configure(menu=bar) # メニューバーがあれば設定する
     self.update_title(app)
     return top
@@ -584,7 +637,7 @@ class _TkAppContext(_AppContext):
     app.cc = cc
     fr = Frame(top).pack(side='top', fill=BOTH, expand=1)
     app.create_widgets(fr)
-
+    self._setup_widget(fr, dump=os.environ.get('DUMP_WIDGET', ''))
     cc.update_title(app)
     top.focus()
     top._set_transient(master)
@@ -623,7 +676,7 @@ class _TkAppContext(_AppContext):
     # 前のclientに戻す
     app = self._apps[-1]
     self.menu = app.menu
-    self.top.configure(menu=app.menu_bar)
+    self.top.configure(menu=app.menubar)
     self.update_title(app)
 
   def update_title(self, app, msg=None):
@@ -658,18 +711,31 @@ class _TkAppContext(_AppContext):
     """メニュー割り当てに利用する手続きを返す"""
     return self._find_menu_item(cmd, proc).doit
 
-  def find_menu(self, entries, master=None, proc=None, font=None):
+  def find_menu(self, name, entries=(), master=None, proc=None, font=None):
     """ メニュー定義テキストよりメニュー・インスタンスを作成する
     param: entries メニュー項目を定義した配列
     """
     if not proc: proc = self.perform
     if not master: master = self.top
-    if not entries: raise ValueError("empty entries")
-    en = entries[0].split(';')[0]
-    if en in self._menu_map: return self._menu_map[en]
 
-    self._menu_map[en] = menu = self._create_menu(entries, master, proc, font)
-    # trace("menu", en, self.menu.keys())
+    for me in entries:
+      en = me[0].split(';')[0]
+      self._menu_map[en] = menu = self._create_menu(me, master, proc, font)
+
+    if verbose: trace("menu keys", en, menu.keys())
+
+    names = name.split(':')
+    if len(names) == 1:
+      menu = self._menu_map.get(name, None)
+    else:
+      # 複数のエントリをルックアップする（メニューバー用）
+      menu = tk.Menu(master, tearoff=False)
+      for mn in names:
+        sub = self._menu_map.get(mn, None)
+        if not sub: continue
+        un, cap = item_caption(sub._ent.split(';')[1])
+        menu.add_cascade(label=cap, under=un, menu=sub)
+      
     return menu
 
   def _create_menu(self, entries, master=None, proc=None, font=None):
@@ -678,7 +744,7 @@ param: entries メニュー項目を定義した配列
 """
     menu = tk.Menu(master, tearoff=False)
     rg = StringVar()
-    ent = entries[0]
+    menu._ent = ent = entries[0]
     if type(ent) in (str, unicode):
       cmd = ent.split(';')[0]
       if cmd:
@@ -798,7 +864,7 @@ param: entries メニュー項目を定義した配列
   def set_clipboard_text(self, text):
     """ クリップボードにテキストを設定する"""
     root.clipboard_clear()
-    if len(text) > 0: root.clipboard_append(text)
+    root.clipboard_append(text)
 
   def show_error(self, prompt, title='error', **options):
     """ エラーダイアログ表示 """
@@ -856,10 +922,7 @@ param: entries メニュー項目を定義した配列
     filetypes: sequence of (label, pattern) tuples.
 """
     options['parent'] = self.top
-    if platform == 'darwin': options.pop('filetypes', None)
-    # macOSではファイルタイプの指定ができない（固まる）
-    if multiple: return filedialog.askopenfilenames(**options)
-    return filedialog.askopenfilename(**options)
+    return ask_open_file(multiple=multiple, **options)
 
   def ask_save_file(self, **options):
     """ 保存用にローカル・ファイルを選択させる
@@ -874,15 +937,15 @@ param: entries メニュー項目を定義した配列
     filetypes: sequence of (label, pattern) tuples.
 """
     options['parent'] = self.top
-    if platform == 'darwin': options.pop('filetypes', None)
-    # macOSではファイルタイプの指定ができない（固まる）
-    return filedialog.asksaveasfilename(**options)
+    return ask_save_file(**options)
 
   def ask_folder(self, **options):
     """ 保存用にローカル・ディレクトリを選択させる
 TK8.3から利用できる
 """
     options['parent'] = self.top
+    initialdir = options.pop('initialdir', '')
+    if initialdir: options['initialdir'] = initialdir
     return filedialog.askdirectory(**options)
 
 
@@ -894,7 +957,7 @@ class UIClient(object):
   baseにはGUIパーツを組み立てる場所が渡されてくる。（通常はフレーム）'''
     pass
 
-  def create_menu_bar(self):
+  def create_menubar(self):
     '''アプリケーションが固有メニューを提供する場合、このタイミングで作成する'''
     pass
 
@@ -914,7 +977,8 @@ class App(UIClient):
 
   @classmethod
   def run(Cls, args=()):
-    Cls.start(args)
+    top = Cls.start(args)
+    top.after_idle(top.tkraise) # ウィンドウを手前にもってくる
     root.mainloop() # イベントループに入る
     if verbose: trace('done.')
 
@@ -925,6 +989,7 @@ class App(UIClient):
     top = cc._create_app(app)
     top.lift()
     top.after_idle(top.tkraise) # ウィンドウを手前にもってくる
+    return top
               
   def bind_proc(self, cmd, proc=None):
     """ キー割り当てに利用する手続きを返す"""
@@ -936,10 +1001,11 @@ class App(UIClient):
     if not proc: proc = self.perform
     return self.cc.menu_proc(cmd, proc)
 
-  def find_menu(self, entries, master=None, proc=None):
+  def find_menu(self, name, entries=(), master=None, proc=None, font=None):
     """メニュー定義テキストよりメニュー・インスタンスを作成する"""
-    if not proc: proc = self.perform
-    return self.cc.find_menu(entries, master, proc)
+    if not proc and hasattr(self, 'perform'): proc = self.perform
+    if not entries and hasattr(self, 'menu_items'): entries = self.menu_items
+    return self.cc.find_menu(name, entries, master, proc, font)
 
   def close(self):
     self.cc.close()
@@ -947,12 +1013,12 @@ class App(UIClient):
   def dispose(self):
     self.cc.dispose()
 
-  def create_menu_bar(self):
-    if hasattr(self, 'menubar_items'):
-      return self.find_menu(self.menubar_items)
+  def create_menubar(self):
+    if hasattr(self, 'menu_bar'):
+      return self.find_menu(self.menu_bar)
 
-  def execute_task(self, cmd, *closure, **option):
-    trace('execute1', cmd, closure, file=sys.stderr)
+  def execute_task(self, cmd, *closure, **options):
+    trace('execute', cmd, closure, options, file=sys.stderr)
     
 _frame_count = 0
 
@@ -976,11 +1042,11 @@ style = ttk.Style(root)
 
 def setup_theme(wi):
   """"ttkのスタイルを適用する"""
-  if sys.platform == 'darwin':
+  if platform == 'darwin':
     # https://github.com/nomad-software/tcltk/blob/master/dist/library/ttk/aquaTheme.tcl
-    if isinstance(wi, (Text, Listbox)):
+    if isinstance(wi, (Text, Listbox, Canvas)):
       wi.configure(highlightbackground='systemWindowBody',
-                   highlightcolor='systemHighlight')
+                    highlightcolor='systemHighlight')
   return wi
 
 
@@ -1064,4 +1130,91 @@ def find_image(image_name):
 
 def register_text_popup(ent):
   pass
+
+
+try:
+  from idlelib.ToolTip import ToolTip, ListboxToolTip
+
+  def set_tool_tip(btn, text):
+    """ツールチップを表示する"""
+    if type(text) == list or type(text) == tuple:
+      ListboxToolTip(btn, text)
+    else:
+      ToolTip(btn, text)
+except ImportError as e:
+  syserr.write("WARN: cannot use tooltip: %s\n" % e)
+
+  def set_tool_tip(btn, text):
+    pass
+
+# 画像のキャッシュ用
+images = {}
+
+def find_image(image_name):
+  """パスを探索して画像を読み込む"""
+  if not image_name: return None
+  image_name = image_name.strip()
+  if not image_name: return None
+  
+  if image_name in images: return images[image_name]
+  img = None
+  try:
+    # trace("findImage",zipboot, file=syserr)
+    fpath = []
+    fpath.extend(sys.path)
+    fpath.append(os.getcwd())
+    
+    for pt in fpath:
+      #trace(pt, "..", file=sys.stderr)
+      if not os.path.exists(pt): continue
+      if zipfile.is_zipfile(pt):
+        try:
+          with zipfile.ZipFile(image_name) as zf:
+            img = tk.PhotoImage(data=zf.read(image_name))
+            # trace("read from %s in %s" % (imageName, pt))
+            break
+        except:
+          continue
+
+      fn = os.path.join(pt, image_name)
+      if os.path.exists(fn):
+        img = tk.PhotoImage(file=fn)
+        break
+
+      fn = fn.replace('/', '\\')
+      #trace(fn, "..", file=sys.stderr)
+      if os.path.exists(fn):
+        img = tk.PhotoImage(file=fn)
+        break
+        
+    if img: images[image_name] = img
+
+  except Exception as e:
+    trace(e)
+  return img
+
+
+def scrolled_widget(master=None, Klass=Text,  **options):
+  '''スクロールバー付きのWidgetを作成する'''
+  
+  fr = Frame(master)
+  fr.pack(side='top', fill='both', expand=1)
+  sbar = Scrollbar(fr)
+
+  if type(Klass) == Text:
+    options['width'] = options.pop('width', 40)
+    options['height'] = options.pop('height', 10)
+    options['undo'] = options.pop('undo', 1)
+    options['maxundo'] = options.pop('maxundo', 10000)
+
+  buf = Klass(fr, **options)
+  sbar.config(command=buf.yview)
+  sbar.pack(side='right', fill='y')
+
+  buf.config(yscrollcommand=sbar.set)
+  buf.pack(side='left', fill='both', expand=1)
+  buf.frame = fr
+  buf.sbar = sbar
+  
+  return buf
 
