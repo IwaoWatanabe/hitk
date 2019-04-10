@@ -22,7 +22,6 @@ class Entry01(ui.App):
     var.set('AAA')
     ent = Entry(fr, width=25, textvariable=var).pack(side='left', padx=3, pady=3)
     ent.bind('<Return>', self.bind_proc('input'))
-    ui.register_entry_popup(ent)
     cc.bind('<Alt-e>', lambda event, wi=ent: entry_focus(wi))
     entry_focus(ent)
 
@@ -36,7 +35,6 @@ class Entry01(ui.App):
     var.set('BBB')
     ent = Entry(fr, show='*', width=25, textvariable=var).pack(side='left', padx=3, pady=3)
     ent.bind('<Return>', self.bind_proc('input'))
-    ui.register_entry_popup(ent)
     cc.bind('<Alt-p>', lambda event, wi=ent: entry_focus(wi))
 
   # -- combobox(Edit)
@@ -50,12 +48,10 @@ class Entry01(ui.App):
     ent['values'] = ('AA', 'BB', 'CC')
     ent.current(1)
     var.set('CCC')
-    ui.register_entry_popup(ent)
 
     ent.bind('<<ComboboxSelected>>', self.bind_proc('combo'))
     ent.bind('<Return>', self.bind_proc('combo'))
     ent.bind('<Control-j>', self.bind_proc('combo'))
-    ui.register_entry_popup(ent)
     cc.bind('<Alt-b>', lambda event, wi=ent: entry_focus(wi))
 
     # -- readonly text
