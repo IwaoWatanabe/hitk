@@ -85,6 +85,43 @@ tk.Place.place = _return_self(tk.Place.place)
 tk.Misc.config = _return_config_self(tk.Misc.config)
 Combobox.set = _return_self(Combobox.set)
 
+
+def _bind_darwin(func1):
+  @functools.wraps(func1)
+  def wrap(self, sequence=None, func=None, add=None):
+    if sequence:
+      if platform == 'darwin': sequence = sequence.replace('<Control-','<Command-')
+      sequence = sequence.replace(r'<\Control-','<Control-')
+    return func1(self, sequence=sequence, func=func, add=add)
+  return wrap
+
+def _bind_class_darwin(func1):
+  @functools.wraps(func1)
+  def wrap(self, className, sequence=None, func=None, add=None):
+    if sequence:
+      if platform == 'darwin': sequence = sequence.replace('<Control-','<Command-')
+      sequence = sequence.replace(r'<\Control-','<Control-')
+    return func1(self, className, sequence=sequence, func=func, add=add)
+  return wrap
+
+def _unbind_darwin(func1):
+  @functools.wraps(func1)
+  def wrap(self, sequence, funcid=None):
+    if sequence:
+      if platform == 'darwin': sequence = sequence.replace('<Control-','<Command-')
+      sequence = sequence.replace(r'<\Control-','<Control-')
+    return func1(self, sequence, funcid=funcid)
+  return wrap
+
+def _unbind_class_darwin(func1):
+  @functools.wraps(func1)
+  def wrap(self, className, sequence):
+    if sequence:
+      if platform == 'darwin': sequence = sequence.replace('<Control-','<Command-')
+      sequence = sequence.replace(r'<\Control-','<Control-')
+    return func1(self, clsasName, sequence)
+  return wrap
+
 def _return_text_darwin(func):
   @functools.wraps(func)
   def wrap(self, *args, **kw):
@@ -95,6 +132,12 @@ def _return_text_darwin(func):
 if platform == 'darwin':
   tk.Misc.selection_get = _return_text_darwin(tk.Misc.selection_get)
   tk.Misc.clipboard_get = _return_text_darwin(tk.Misc.clipboard_get)
+
+tk.Misc.bind = _bind_darwin(tk.Misc.bind)
+tk.Misc.bind_class = _bind_class_darwin(tk.Misc.bind_class)
+tk.Misc.unbind = _unbind_darwin(tk.Misc.unbind)
+tk.Misc.unbind_class = _unbind_class_darwin(tk.Misc.unbind_class)
+
 
 
 def parse_geometry(geometry):
@@ -559,12 +602,6 @@ def _top_bind(top):
   top.bind_class('TCombobox', '<Control-a>', _entry_all_select)
   top.bind_class('Text', '<Control-a>', _text_all_select)
 
-  if platform == 'darwin':
-    top.bind_class('Entry', '<Command-a>', _entry_all_select)
-    top.bind_class('TEntry', '<Command-a>', _entry_all_select)
-    top.bind_class('TCombobox', '<Command-a>', _entry_all_select)
-    top.bind_class('Text', '<Command-a>', _text_all_select)
-
     
 class _TkAppContext(_AppContext):
 
@@ -625,6 +662,7 @@ class _TkAppContext(_AppContext):
     setup_theme(wi)
     if isinstance(wi, (Entry, Combobox)): register_entry_popup(wi)
     elif isinstance(wi, Text): register_text_popup(wi)
+    elif isinstance(wi, Treeview): register_tree_bind(wi)
 
     if dump: trace('%s' % level, wi.__class__.__name__)
     for w2 in wi.winfo_children():
@@ -641,6 +679,7 @@ class _TkAppContext(_AppContext):
     bar = app.create_menubar()
     if bar: top.configure(menu=bar) # メニューバーがあれば設定する
     self.update_title(app)
+    _top_bind(top)
     return top
 
   def create_dialog(self, AppClass, *opts, **kwd):
@@ -828,9 +867,6 @@ param: entries メニュー項目を定義した配列
     return menu
 
   def bind(self, sequence=None, func=None, add=None):
-    if sequence and platform == 'darwin':
-      sequence = sequence.replace('Control-','Command-')
-
     self.top.bind(sequence, func, add)
 
   def unbind(self, sequence, funcid=None):
@@ -1207,9 +1243,16 @@ class _EntryPopup():
     buf.icursor(END)
     
 
-def entry_store(ent, text):
-  pass
+def entry_store(ent, text, limit=30):
+  """Comboboxに選択テキストを追加する"""
+  if not text: return
+  values = list(combo.cget("values"))
+  if text in values: values.remove(text)
+  values.insert(0, text)
+  combo["values"] = values[:limit]
+  return combo
 
+ttk.Combobox.store = entry_store
 
 def register_shortcut(target, shortcut):
   """ポップアップメニューを登録する"""
@@ -1381,3 +1424,141 @@ def scrolled_widget(master=None, Klass=Text,  **options):
   
   return buf
 
+
+def __node_up(ev):
+  """ツリーの選択ノードを上方向に広げる"""
+  tree = ev.widget
+  iid = tree.focus()
+  sel = tree.selection()
+  if sel and len(sel) > 1 and sel[-1] == iid and ev.state & 1:
+    tree.selection('remove', (iid,))
+  ny = tree.bbox(iid)[1]
+  niid = tree.identify_row(ny)
+  if niid:
+    if ev.state & 1: tree.selection('add', (niid,))
+    tree.focus(niid)
+    tree.see(niid)
+  return 'break'
+
+
+def __node_down(ev):
+  """ツリーの選択ノードを下方向に広げる"""
+  tree = ev.widget
+  iid = tree.focus()
+  sel = tree.selection()
+  if sel and len(sel) > 1 and sel[0] == iid and ev.state & 1:
+    tree.selection('remove', (iid,))
+  bbox = tree.bbox(iid)
+  ny = bbox[1] + bbox[3] + 1
+  niid = tree.identify_row(ny)
+  if niid:
+    if ev.state & 1: tree.selection('add', (niid,))
+    tree.focus(niid)
+    tree.see(niid)
+  return 'break'
+
+
+def __node_toggle_select(ev):
+  """ツリーの選択ノードを反転する"""
+  tree = ev.widget
+  iid = tree.focus()
+  if iid: tree.selection('toggle', (iid,))
+  return 'break'
+
+
+def __node_key_action(ev):
+  keysym = ev.keysym
+  tree = ev.widget
+
+  if 'Home' == keysym:
+    items = tree.get_children()
+    if items:
+      tree.selection_set('')
+      iid = items[0]
+      tree.focus(iid)
+      tree.see(iid)
+      if ev.state & 4 == 4: tree.selection_set(iid)
+      # ctrl-Home
+      #return 'break'
+
+  elif 'End' == keysym:
+    items = tree.get_children()
+    if items:
+      iid = items[-1]
+      tree.focus(iid)
+      tree.see(iid)
+      if ev.state & 4 == 4: tree.selection_set(iid)
+      # ctrl-Home
+      #return 'break'
+
+  elif 'Next' == keysym:
+    h = tree.winfo_height()
+    iid = tree.identify_row(h)
+    if not iid: return
+    tree.focus(iid)
+    if ev.state & 4 == 0: tree.selection_set(iid)
+
+  elif 'Prior' == keysym:
+    h = tree.winfo_height()
+    iid = tree.identify_row(0)
+    if not iid: iid = tree.get_children()[0]
+    tree.focus(iid)
+    if ev.state & 4 == 0: tree.selection_set(iid)
+
+    
+def __reset_key_string(tbl):
+  tbl.key_timer = None
+  tbl.key_string = ''
+  #trace('reset tree key')
+
+def __find_item(prefix, tbl):
+  #trace('find', prefix)
+  iid = tbl.focus()
+  iid = tbl.next(iid)
+  while iid:
+    text = tbl.item(iid, 'text')
+    if text.startswith(prefix): return iid
+    iid = tbl.next(iid)
+
+
+def __any_key_press(ev):
+  """キーがタイプされたときに呼び出される"""
+  tbl = ev.widget
+  if tbl.key_timer: tbl.after_cancel(tbl.key_timer)
+  tbl.key_timer = tbl.after(800, lambda wi=tbl: __reset_key_string(wi))
+  ks = tbl.key_string + ev.char
+  if not ks: return
+  # trace('string: ', ks)
+  tbl.key_string = ks
+  iid = __find_item(ks, tbl)
+  if iid:
+    tbl.focus(iid)
+    tbl.see(iid)
+    tbl.selection_set(iid) # 移動する
+
+
+def register_tree_bind(tree):
+  # ツリー操作のためのキー・バインド
+
+  if hasattr(tree, 'skip_bind'): return tree
+
+  if 'tree' in map(str, tree.cget('show')):
+    tree.key_timer = None
+    tree.key_string = ''
+    for bk, proc in (
+        ('<Control-Up>', __node_up),
+        ('<Control-Down>', __node_down),
+        ('<Shift-Up>', __node_up),
+        ('<Shift-Down>', __node_down),
+        ('<space>', __node_toggle_select),
+        ('<Control-Home>', __node_key_action),
+        ('<Control-End>', __node_key_action),
+        ('<Home>', __node_key_action),
+        ('<End>', __node_key_action),
+        ('<Next>', __node_key_action),
+        ('<Prior>', __node_key_action),
+    ): tree.bind(bk, proc)
+
+    tree.bind('<KeyPress>', __any_key_press, '+')
+
+  return tree
