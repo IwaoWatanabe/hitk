@@ -51,9 +51,9 @@ def _find_app(mod, lst):
 def _load_apps(apps='apps.txt'):
   with open(os.environ.get('APPS', apps)) as fh:
     for tt in fh:
-      tt = tt.strip()
+      tt = tt.strip().replace('/', '.')
       if not tt or tt.startswith('#'): continue
-      try: _find_app(_find_module(tt.replace('/', '.')), aplst)
+      try: _find_app(_find_module(tt), aplst)
       except ImportError:
         aplst.extend([_apdic(tt)])
 
