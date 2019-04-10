@@ -7,7 +7,7 @@ from hitk import Button, Checkbutton, Combobox, Entry, Frame,\
     Label, LabelFrame, Listbox, Notebook, Scrollbar, Text, StringVar, BooleanVar
 
 from hitk import tk, ui, trace, END, set_tool_tip, item_caption, find_image, \
-    entry_focus, entry_store
+    entry_focus, entry_store, dialogs
 
 class BasicWidgetApp(ui.App):
   """ウィジェットの基本機能の確認"""
@@ -118,7 +118,7 @@ class BasicWidgetApp(ui.App):
 
     elif 'calendar-popup' == cmd:
       parent = args[0].widget if args else self.cc.top
-      fd = ui.create_dialog(CalendarDialog, parent)
+      fd = cc.find_dialog('calendar', dialogs.CalendarDialog, parent)
       fd.open(self.datepickup)
 
     elif 'fg_select' == cmd:
@@ -252,7 +252,6 @@ class BasicWidgetApp(ui.App):
     cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
     buf = Text(fr, undo=1, maxundo=50, width=25, height=3).pack(side='left', padx=3, pady=3)
     self.buf = buf
-    ui.setup_theme(buf)
     ui.register_text_popup(buf)
     blist.append(('<Alt-t>', lambda event, wi=buf: wi.focus_set()))
 
