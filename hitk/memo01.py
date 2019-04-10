@@ -81,7 +81,7 @@ class MemoApp02(ui.App, dialogs.TextFind):
     buf = self.buf
 
     if 'copy' == cmd:
-      if _select_present(buf):
+      if _text_select_present(buf):
         text = buf.get(SEL_FIRST, SEL_LAST)
         cc.set_clipboard_text(text)
       return 'break'
@@ -200,7 +200,7 @@ class MemoApp02(ui.App, dialogs.TextFind):
 
 
 
-def _select_present(buf):
+def _text_select_present(buf):
   """バッファの範囲指定がされているか判定する"""
   pf = buf.index(SEL_FIRST)
   pl = buf.index(SEL_LAST)
@@ -263,7 +263,7 @@ class TextViewApp(ui.App):
     buf = self.buf
 
     if 'copy' == cmd:
-      if _select_present(buf):
+      if _text_select_present(buf):
         text = buf.get(SEL_FIRST, SEL_LAST)
         cc.set_clipboard_text(text)
       return 'break'
@@ -380,7 +380,7 @@ class EventViewApp(ui.App):
     fr = Frame(base)
     fr.pack(side='top', fill='both', expand=1)
     sbar = Scrollbar(fr)
-    self.buf = buf = Text(fr, width=column, height=rows, padx=5)
+    self.buf = buf = tk.Text(fr, width=column, height=rows, padx=5)
     sbar.config(command=buf.yview)
     sbar.pack(side='right', fill='y')
     buf.config(yscrollcommand=sbar.set)
@@ -399,7 +399,7 @@ class EventViewApp(ui.App):
       ('<Configure>', self._append_event_text),
       ): buf.bind(cond, proc)
 
-    shortcut = self.find_menu('text-shortcut')
+    shortcut = self.find_menu('eventview-shortcut')
     ui.register_shortcut(buf, shortcut)
     #if ui.need_unpost: shortcut.bind('<FocusOut>', lambda ev, wi=shortcut: wi.unpost())
     buf.insert(INSERT, 'platform: %s: %s\n' % (platform.system(), sys.platform))
@@ -407,11 +407,13 @@ class EventViewApp(ui.App):
   def _append_event_text(self, ev):
     #print type(ev.keysym), type(ev.keycode)
 
-    e = ' '.join(map(str, (
-          ev.serial, ev.type, ev.num, ev.char, ev.keysym, ev.keycode,
-          ev.state, ev.width, ev.height, ev.x, ev.y, ev.x_root, ev.y_root, ev.delta)))
+    def _cv(tt): return str(tt)
+    
+    et = ' '.join(map(_cv, (
+          ev.serial, ev.type, ev.num, ev.char, ev.keysym, 'kcd', ev.keycode,
+          'st', ev.state, ev.width, ev.height, ev.x, ev.y, ev.x_root, ev.y_root, ev.delta)))
     buf = self.buf
-    buf.insert(END, '%s\n' % (e, ))
+    buf.insert(END, '%s\n' % (et, ))
     buf.see(END)
     return 'break'
   
@@ -421,8 +423,8 @@ class EventViewApp(ui.App):
       'clear;ログ削除;',
       '-',
       'close;閉じる(&C);ctrl-W',
-    ]
-  ],
+    ],
+  ]
   
   def perform(self, cmd, *args):
     buf = self.buf
