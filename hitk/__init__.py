@@ -5,7 +5,7 @@
 """
 
 from __future__ import print_function
-import functools, os, re, sys, threading, weakref, zipfile
+import ctypes, functools, os, re, sys, threading, weakref, zipfile
 import concurrent.futures
 from logging import DEBUG, INFO, WARN, WARNING, ERROR, FATAL, CRITICAL
 from traceback import format_exc
@@ -96,6 +96,11 @@ if platform == 'darwin':
   tk.Misc.selection_get = _return_text_darwin(tk.Misc.selection_get)
   tk.Misc.clipboard_get = _return_text_darwin(tk.Misc.clipboard_get)
 
+
+def parse_geometry(geometry):
+  m = re.match("(\d+)x(\d+)[+]?([-+]\d+)[+]?([-+]\d+)", geometry)
+  if not m: raise ValueError("failed to parse geometry string")
+  return map(int, m.groups())
 
 class _AppContext():
   ''' アプリケーションが利用する共通機能を提供するインスタンス '''
@@ -534,6 +539,20 @@ def _text_all_select(ev):
   buf.see(INSERT)
   return 'break'
 
+
+def _text_select_present(buf):
+  """バッファの範囲指定がされているか判定する"""
+  try:
+    pf = buf.index(SEL_FIRST)
+    pl = buf.index(SEL_LAST)
+    return not pl == pf
+  except tk.TclError:
+    return False
+
+
+tk.Text.select_present = _text_select_present
+
+
 def _top_bind(top):
   top.bind_class('Entry', '<Control-a>', _entry_all_select)
   top.bind_class('TEntry', '<Control-a>', _entry_all_select)
@@ -602,7 +621,11 @@ class _TkAppContext(_AppContext):
     trace(msg % args if '%' in msg else msg, file=sys.stderr)
 
   def _setup_widget(self, wi, level='', dump=False):
+    # テーマや追加のメニュー等を作成する
     setup_theme(wi)
+    if isinstance(wi, (Entry, Combobox)): register_entry_popup(wi)
+    elif isinstance(wi, Text): register_text_popup(wi)
+
     if dump: trace('%s' % level, wi.__class__.__name__)
     for w2 in wi.winfo_children():
       self._setup_widget(w2, level=level + ' ', dump=dump)
@@ -718,6 +741,7 @@ class _TkAppContext(_AppContext):
     if not proc: proc = self.perform
     if not master: master = self.top
 
+    if verbose: trace(name, entries)
     for me in entries:
       en = me[0].split(';')[0]
       self._menu_map[en] = menu = self._create_menu(me, master, proc, font)
@@ -978,6 +1002,14 @@ class App(UIClient):
   @classmethod
   def run(Cls, args=()):
     top = Cls.start(args)
+    if platform == 'darwin':
+      # アプリケーション（自身）を手前に持ってくるためのAPI呼び出し
+      try:
+        from Cocoa import NSRunningApplication, NSApplicationActivateIgnoringOtherApps
+        app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
+        app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+      except: pass
+      
     top.after_idle(top.tkraise) # ウィンドウを手前にもってくる
     root.mainloop() # イベントループに入る
     if verbose: trace('done.')
@@ -1089,6 +1121,92 @@ def entry_focus(ent):
   return ent
 
 
+class _EntryPopup():
+  """Entry に簡易ポップアップメニューを付与する"""
+
+  def __init__(self, ent=None):
+    self.buf = ent
+    menu = tk.Menu(ent if ent else root, tearoff=0)
+    self.menu = menu
+    for me, proc in (
+        ('cut;切り取り(&T)', self.cut),
+        ('copy;コピー(&C)', self.copy),
+        ('paste;貼り付け(&P)', self.paste),
+        ('select_all;全て選択(&A)', self.select_all),
+    ):
+      cmd, item = me.split(';')
+      # あとで言語によってitemを切り替える処理を入れる
+      
+      un, cap = item_caption(item)
+      menu.add_command(label=cap, underline=un, command=proc)
+      menu.config(postcommand=self._post)
+
+  def _post(self):
+    # 切り取りとコピーのstatの調整
+    stat = tk.ACTIVE if self.buf.select_present() else tk.DISABLED
+    menu = self.menu
+    menu.entryconfigure(0, state=stat)
+    menu.entryconfigure(1, state=stat)
+
+  def _bind(self, ent):
+    menu = self.menu
+
+    def popup(event):
+      self.buf = event.widget
+      menu.tk_popup(event.x_root, event.y_root)
+      return 'break'
+
+    def popup_app(event):
+      self.buf = event.widget
+      menu.tk_popup(event.widget.winfo_rootx(), event.widget.winfo_rooty())
+      return 'break'
+
+    ent.bind('<Control-Button-1>', popup)
+    ent.bind('<Button-%d>' % (2 if sys.platform == 'darwin' else 3,), popup)
+    ent.bind('<Shift-F10>', popup_app)
+    try:
+      ent.bind('<App>', popup_app)
+    except:
+      pass  # for cygwin/X
+    try:
+      ent.bind('<Menu>', popup_app)
+    except:
+      pass
+
+  def cut(self):
+    buf = self.buf
+    if not buf.select_present(): return
+    pf = buf.index(SEL_FIRST)
+    pe = buf.index(SEL_LAST)
+    text = buf.get()[pf:pe]
+    buf.delete(SEL_FIRST, SEL_LAST)
+    buf.clipboard_clear()
+    buf.clipboard_append(text)
+
+  def copy(self):
+    buf = self.buf
+    if not buf.select_present(): return
+    pf = buf.index(SEL_FIRST)
+    pe = buf.index(SEL_LAST)
+    text = buf.get()[pf:pe]
+    buf.clipboard_clear()
+    buf.clipboard_append(text)
+
+  def paste(self):
+    buf = self.buf
+    if buf.select_present(): buf.delete(SEL_FIRST, SEL_LAST)
+    try:
+      text = buf.selection_get(selection='CLIPBOARD')
+      buf.insert(INSERT, text)
+    except tk.TclError:
+      pass
+    
+  def select_all(self):
+    buf = self.buf
+    buf.select_range(0, END)
+    buf.icursor(END)
+    
+
 def entry_store(ent, text):
   pass
 
@@ -1099,6 +1217,7 @@ def register_shortcut(target, shortcut):
 
   def popup(event):
     shortcut.tk_popup(event.x_root, event.y_root)
+    return 'break'
 
   def popup_app(event):
     shortcut.tk_popup(event.widget.winfo_rootx(), event.widget.winfo_rooty())
@@ -1116,20 +1235,64 @@ def register_shortcut(target, shortcut):
   except:
     pass
   # if need_unpost: shortcut.bind('<FocusOut>', lambda ev, wi=shortcut: wi.unpost())
+  target.shortcut = shortcut
   return target
 
 
+_entry_popup = None
+
+
 def register_entry_popup(ent):
-  pass
+  global _entry_popup
+  if not _entry_popup: _entry_popup = _EntryPopup(ent)
+  if not hasattr(ent, 'shortcut'): _entry_popup._bind(ent)
+  return ent
 
-def set_tool_tip(ent, msg):
-  pass
 
-def find_image(image_name):
-  pass
+class _TextPopup(_EntryPopup):
+  """テキストウィジェットに簡易ポップアップメニューを付与する"""
 
-def register_text_popup(ent):
-  pass
+  def cut(self):
+    buf = self.buf
+    if not _text_select_present(buf): return
+    text = buf.get(SEL_FIRST, SEL_LAST)
+    buf.delete(SEL_FIRST, SEL_LAST)
+    buf.clipboard_clear()
+    buf.clipboard_append(text)
+
+  def copy(self):
+    buf = self.buf
+    if not _text_select_present(buf): return
+    pf = buf.index(SEL_FIRST)
+    pe = buf.index(SEL_LAST)
+    text = buf.get(pf, pe)
+    buf.clipboard_clear()
+    buf.clipboard_append(text)
+    
+  def paste(self):
+    buf = self.buf
+    try:
+      text = buf.selection_get(selection='CLIPBOARD')
+      if _text_select_present(buf): buf.delete(SEL_FIRST, SEL_LAST)
+      buf.insert(INSERT, text)
+    except TclError:
+      pass
+
+  def select_all(self):
+    buf = self.buf
+    buf.tag_add(SEL, "1.0", END)
+    buf.mark_set(INSERT, "1.0")
+    buf.see(INSERT)
+
+    
+_text_popup = None
+
+
+def register_text_popup(buf):
+  global _text_popup
+  if not _text_popup: _text_popup = _TextPopup(buf)
+  if not hasattr(buf, 'shortcut'): _text_popup._bind(buf)
+  return buf
 
 
 try:
