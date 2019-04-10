@@ -12,9 +12,9 @@ from hitk import tk, ui, trace, END, set_tool_tip, item_caption, find_image, \
 
 class BasicWidgetApp(ui.App):
   """ウィジェットの基本機能の確認"""
+  menu_bar = 'file:view:help'
 
-  menubar_items = [
-    'basic_menubar;',
+  menu_items = [
     [ 'file;ファイル(&F)',
       'new;新規作成(&N);ctrl-N',
       'open;ファイルを開く(&O) ..;ctrl-O',
@@ -38,7 +38,7 @@ class BasicWidgetApp(ui.App):
     [ 'help;ヘルプ(&H)',
       'about;このアプリについて(&A);;idlelib/Icons/python.gif',
       ],
-    ]
+  ]
   
   # ダイアログで利用するファイルのサフィックス情報。
   textFileTypes = [
@@ -90,7 +90,7 @@ class BasicWidgetApp(ui.App):
       self.dirinput.set(tf)
 
     elif 'close' == cmd:
-      self.close()
+      cc.close()
 
     elif 'info-msg' == cmd:
       cc.show_info('情報メッセージ表示')
@@ -148,11 +148,6 @@ class BasicWidgetApp(ui.App):
     self.fg_name.set(cname)
     self.fg_sample.configure(background=cname if cname else 'systemWindowText')
 
-  def create_menu_bar(self):
-    """メニュー定義テキストよりメニュー・インスタンスを作成する"""
-    bar = self.find_menu(self.menubar_items)
-    return bar
-
   def release(self):
     self.cc.log('release called. %s', self)
 
@@ -179,7 +174,6 @@ class BasicWidgetApp(ui.App):
     var.set('aaa')
     ent = Entry(fr, width=25, textvariable=var).pack(side='left', padx=3, pady=3)
     ent.bind('<Return>', self.bind_proc('input'))
-    ui.register_entry_popup(ent)
     blist.append(('<Alt-n>', lambda event, wi=ent: entry_focus(wi)))
     entry_focus(ent)
 
@@ -194,7 +188,6 @@ class BasicWidgetApp(ui.App):
     var.set('bbb')
     self.passwd = var
     ent = Entry(fr, show='*', width=25, textvariable=var).pack(side='left', padx=3, pady=3)
-    ui.register_entry_popup(ent)
     blist.append(('<Alt-p>', lambda event, wi=ent: entry_focus(wi)))
 
 # -- button
@@ -229,7 +222,6 @@ class BasicWidgetApp(ui.App):
     ent.bind('<<ComboboxSelected>>', self.bind_proc('combo'))
     ent.bind('<Return>', self.bind_proc('combo'))
     ent.bind('<Control-j>', self.bind_proc('combo'))
-    ui.register_entry_popup(ent)
     blist.append(('<Alt-m>', lambda event, wi=ent: entry_focus(wi)))
 
 # -- combobox(Readonly)
@@ -253,7 +245,6 @@ class BasicWidgetApp(ui.App):
     cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
     buf = Text(fr, undo=1, maxundo=50, width=25, height=3).pack(side='left', padx=3, pady=3)
     self.buf = buf
-    ui.register_text_popup(buf)
     blist.append(('<Alt-t>', lambda event, wi=buf: wi.focus_set()))
 
   def _create_list_tab(self, tab):
@@ -296,7 +287,6 @@ class BasicWidgetApp(ui.App):
     var = StringVar()
     self.dirinput = var
     ent = Entry(fr, width=25, textvariable=var).pack(side='left', padx=3, pady=3)
-    ui.register_entry_popup(ent)
     blist.append(('<Alt-d>', lambda event, wi=ent: entry_focus(wi)))
 
     btn = tk.Button(fr, text='..', command=self.menu_proc('dir')).pack(side='left', padx=3, pady=3)
@@ -340,7 +330,6 @@ class BasicWidgetApp(ui.App):
     var = StringVar()
     self.datepickup = var
     ent = Entry(fr, width=15, textvariable=var).pack(side='left', padx=3, pady=3)
-    ui.register_entry_popup(ent)
     blist.append(('<Alt-c>', lambda event, wi=ent: entry_focus(wi)))
 
     btn = tk.Button(fr, text='..',
@@ -359,7 +348,6 @@ class BasicWidgetApp(ui.App):
     var = StringVar()
     self.fg_name = var
     ent = Entry(fr, width=25, textvariable=var).pack(side='left', padx=3, pady=3)
-    ui.register_entry_popup(ent)
     blist.append(('<Alt-f>', lambda event, wi=ent: entry_focus(wi)))
     ent.bind('<Return>', self.bind_proc('fg_color'))
 
@@ -384,7 +372,7 @@ class BasicWidgetApp(ui.App):
     self.tsv_editor = comp = Memo()
     comp.client_context = self.cc
     comp.create_widgets(tab)
-    tkui.register_dnd_notify(comp.buf, self.dnd_notify)
+    ui.register_dnd_notify(comp.buf, self.dnd_notify)
 
   def dnd_notify(self, filenames, wi):
     for nn in filenames:

@@ -334,7 +334,8 @@ class CalendarDialog(ui.App):
         entry.action = self.close
         self.cal1.ent = entry
         self.cal2.ent = entry
-
+    self.cc.show()
+    
 
 searchWords = []
 replaceWords = []
