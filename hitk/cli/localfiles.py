@@ -249,9 +249,10 @@ forceがFalseの場合はファイルは空である必要がある"""
         _readline = fh.readline
       else:
         def _readline(): return fh.readline(size)
-                
+
       ct = 0
       if skip:
+        # 行頭スキップ
         while ct < skip:
           line = _readline()
           ct += 1
@@ -259,40 +260,211 @@ forceがFalseの場合はファイルは空である必要がある"""
         ct = 0
 
       line = _readline()
+      
       if lines is not None:
+        # ------------ 扱う行数に上限を設けている ここから
+        if step <= 1:
+          while line:
+            ct += 1
+            if ct > lines: return
+            yield line.rstrip(ws)
+            line = _readline()
+          return
+        
+        # ------------ 複数行扱う
+        
+        buf = []; cn = 0
+        while line:
+          ct += 1
+          if ct > lines: break
+          buf.append(line.rstrip(ws))
+          cn += 1
+          if cn >= step:
+            buf.append('')
+            text = '\n'.join(buf); buf = []; cn = 0
+            yield text
+              
+          line = _readline()
+
+        if buf:
+          buf.append('')
+          text = '\n'.join(buf); buf = None
+          yield text
+        return
+        # ------------ 扱う行数に上限を設けている ここまで
+          
+      # ------------ 扱う行数に上限を設けていない ここから
+      if step <= 1:
+        # ------------ 単一行を扱う
+        while line:
+          yield line.rstrip(ws)
+          line = _readline()
+        return
+
+      # ------------ 複数行扱う
+      buf = []
+      while line:
+        buf.append(line.rstrip(ws))
+        ct += 1
+        if ct >= step:
+          buf.append('')
+          text = '\n'.join(buf); buf = []; ct = 0
+          yield text
+        line = _readline()
+
+      if buf:
+        buf.append('')
+        text = '\n'.join(buf); buf = None
+        yield text
+        
+    finally: fh.close()
+
+    
+  def read_tsv_lines(self, name, skip=0, step=1, lines=None, \
+                     encoding = 'utf-8-sig', errors='strict', ws='\r\n', sep='\t'):
+    """TSVテキストを行単位で読み込んで返すジェネレータ。末尾の空白は除く
+        サフィックスが.gz であれば、gzip展開しながら読み込む
+"""
+    import codecs, gzip
+    path = self._path(name)
+    if encoding:
+      if path.endswith('.gz'):
+        Reader = codecs.getreader(encoding)
+        fh = Reader(gzip.open(path,'r'),errors=errors)
+      else:
+        fh = codecs.open(path,'r',encoding,errors)
+
+      log.debug('%s: (encoding:%s) reading..', path, encoding)
+
+    else:
+      fh = gzip.open(path) if path.endswith('.gz') else open(path)
+      log.debug('%s(%s,%s): reading..', path, encoding, type(fh))
+
+    try:
+      ct = 0
+      if skip:
+        while ct < skip:
+          line = fh.readline()
+          ct += 1
+          if not line: return
+          
+      ct = 0
+      line = fh.readline()
+
+      if step <= 1:
+        # --- 行単位で返却する ここから
+        if not lines:
+          # 返却行数の判定を行わない
+          while line:
+            yield tuple(line.rstrip(ws).split(sep))
+            line = fh.readline()
+          return
+        
         while line:
           ct += 1
           if ct > lines: return
-          yield line.rstrip(ws)
-          line = _readline()
-      else:
-        if step <= 1:
-          while line:
-            yield line.rstrip(ws)
-            line = _readline()
-        else:
-          buf = []
-          while line:
-            buf.append(line.rstrip(ws))
-            ct += 1
-            if ct > step:
-              buf.append('')
-              text = '\n'.join(buf)
-              buf = []
-              yield text
-              ct = 0
-            line = _readline()
+          yield tuple(line.rstrip(ws).split(sep))
+          line = fh.readline()
+        return
+        # --- 行単位で返却する ここまで
 
-          if buf:
-            buf.append('')
-            text = '\n'.join(buf)
-            buf = []
-            yield text
-            
+      # --- ここから複数行返す
+      buf = []
+      cn = 0
+
+      if not lines:
+        # 返却行数の判定を行わない
+        while line:
+          buf.append(tuple(line.rstrip(ws).split(sep)))
+          cn += 1
+          if cn == step: yield buf; buf = []; cn = 0
+          line = fh.readline()
+        if buf: yield buf
+        return
+
+      # --- ここから行数判定を行う
+      while line:
+        ct += 1
+        if ct > lines: break
+        buf.append(tuple(line.rstrip(ws).split(sep)))
+        cn += 1
+        if cn == step: yield buf; buf = []; cn = 0
+        line = fh.readline()
+      if buf: yield buf
+      
     finally: fh.close()
 
 
+  def read_csv_lines(self, skip=0, step=1, rows=None, \
+                     encoding = 'utf-8-sig', errors='strict'):
+    """CSVテキストを行単位で読み込んで返すジェネレータ。末尾の空白は除く
+        サフィックスが.gz であれば、gzip展開しながら読み込む
+"""
+    import codecs, gzip, csv
+    path = self._path(name)
+    if encoding:
+      if path.endswith('.gz'):
+        Reader = codecs.getreader(encoding)
+        fh = Reader(gzip.open(path,'r'),errors=errors)
+      else:
+        fh = codecs.open(path,'r',encoding,errors)
 
+      log.debug('%s: (encoding:%s) reading..', path, encoding)
+
+    else:
+      fh = gzip.open(path) if path.endswith('.gz') else open(path)
+      log.debug('%s(%s,%s,%s): reading..', path, encoding, size, type(fh))
+
+    try:
+      ct = 0
+      reader = csv.reader(fh)
+      if skip:
+        while ct < skip:
+          row = next(reader)
+          ct += 1
+          if not row: return
+
+      if step <= 1:
+        # --- 行単位で返却する ここから
+        if not rows:
+          # 返却行数の判定を行わない
+          for row in reader:
+            yield tuple(row)
+          return
+        
+        for row in reader:
+          ct += 1
+          if ct > rows: return
+          yield tuple(row)
+        return
+        # --- 行単位で返却する ここまで
+          
+      # --- ここから複数行返す
+      buf = []
+      cn = 0
+
+      if not rows:
+        # 返却行数の判定を行わない
+        for row in reader:
+          buf.append(tuple(row))
+          cn += 1
+          if cn == step: yield buf; buf = []; cn = 0
+          
+        if buf: yield buf
+        return
+
+      # --- ここから行数判定を行う
+      
+      while line:
+        ct += 1
+        if ct > rows: break
+        buf.append(tuple(row))
+        cn += 1
+        if cn == step: yield buf; buf = []; cn = 0
+      if buf: yield buf
+      
+    finally: fh.close()
+    
 class LocalFileManager:
   "ローカルファイルの基本操作機能を提供する"
 
@@ -521,7 +693,7 @@ cp -R [-pn] <src> .. <dst-dir>
     for opt, optarg in opts:
       if opt in ('-n', '--dryrun'): dry_run = 1
       elif opt in ('-p', '--parents'): with_parent = 1
-      else: return self.do_help(cmd)
+      else: return self.usage(cmd)
         
     rc = 0
     for path in args:
@@ -548,7 +720,7 @@ cp -R [-pn] <src> .. <dst-dir>
     for opt, optarg in opts:
       if opt in ('-n', '--dryrun'): dry_run = 1
       elif opt in ('-p', '--parents'): with_parent = 1
-      else: return self.do_help(cmd)
+      else: return self.usage(cmd)
 
     rc = 0
     for path in args:
@@ -572,15 +744,18 @@ cp -R [-pn] <src> .. <dst-dir>
     skip = 0
     encoding = None
     errors='strict'
+    pattern=''
     params = []
     while argv:
-      opts, args = cli.getopt(argv, 'n:s:E:', (
-              'lines=','skip=','encoding=','help'
-              ))
+      opts, args = cli.getopt(argv, 'n:s:E:T', (
+        'lines=','skip=','encoding=','help'
+      ))
 
       for opt, optarg in opts:
         if opt in ('-n', '--lines'): lines = int(optarg)
         elif opt in ('-s', '--skip'): skip = int(optarg)
+        elif opt in ('-T', '--tsv'): pattern = r'\s+'
+        elif opt in ('-P', '--pattern'): pattern = optarg
         elif opt in ('-E', '--encoding'): encoding = optarg
         else: return self.usage(cmd)
 
@@ -597,8 +772,18 @@ cp -R [-pn] <src> .. <dst-dir>
 
       fn0 = os.path.basename(fn)
 
-      for line in lf.readlines(fn0, size=None, skip=skip, lines=lines, encoding=encoding, errors=errors):
-        cli._print(line)
+      if not pattern:
+        for line in lf.readlines(fn0, skip=skip, lines=lines, encoding=encoding, errors=errors):
+          cli._print(line)
+        return
+
+      fs = re.compile(pattern)
+      sep = '\t'
+      
+      for line in lf.readlines(fn0, skip=skip, lines=lines, encoding=encoding, errors=errors):
+        ta = fs.split(line)
+        cli._print(sep.join(ta))
+
     
     @cli.alert
     def glob_cmd(self, line):
@@ -610,19 +795,19 @@ cp -R [-pn] <src> .. <dst-dir>
         
         basedir = ''
         try:
-            opts, args = cli.getopt(argv, 'd:')
-        except cli.GetoptError: return self.do_help(cmd)
+          opts, args = cli.getopt(argv, 'd:')
+        except cli.GetoptError: return self.usage(cmd)
 
         for opt, optarg in opts:
-            if opt == '-d': basedir = optarg
-            elif opt == '-v': verbose = True
+          if opt == '-d': basedir = optarg
+          elif opt == '-v': verbose = True
 
         lf = LocalFolder(basedir)
         cli._print(lf)
 
         entries = [ ]
         for pat in args:
-            entries.extend(lf.glob(pat))
+          entries.extend(lf.glob(pat))
 
         cli.show_items(entries)
         
@@ -700,7 +885,7 @@ cp -R [-pn] <src> .. <dst-dir>
         
     ind = 0
     al = len(args)
-    if not al: return self.do_help(cmd)
+    if not al: return self.usage(cmd)
 
     if not patterns:
       patterns.append(args[ind])
@@ -890,7 +1075,7 @@ cp -R [-pn] <src> .. <dst-dir>
       elif opt == '-C': lsStyle = 'column'
       elif opt == '-R': recursive = True
       elif opt == '-v': cli.verbose = True
-      else: return self.do_help(cmd)
+      else: return self.usage(cmd)
         
     detail = lsStyle == 'detail'
     if not args:
@@ -970,7 +1155,7 @@ cp -R [-pn] <src> .. <dst-dir>
       elif opt == '-i':
         env.clear()
       elif opt == '-v': cli.verbose = True
-      else: return self.do_help(cmd)
+      else: return self.usage(cmd)
 
     def show_env():
       for kn in sorted(env.keys()):
@@ -1033,7 +1218,48 @@ cp -R [-pn] <src> .. <dst-dir>
     cli._print('sys.platform', sys.platform)
     cli._print('sys.version', sys.version)
       
+  @cli.cmd_args
+  def tsv_cmd(self, argv):
+    "usage: tsv [-n <lines>][-s <skip>][-S <step>][-E <encoding>][-o <outfile>] files .."
+    # TSV/CSVファイルを読み込んで表示する
+    cmd = argv[0]
+    step = 1
+    skip = 0
+    lines = 0
+    encoding = ''
+    de = '\t'
 
+    opts, args = cli.getopt(argv[1:], 'n:s:S:E:vd:', (
+      'skip=', 'lines=', 'rows=', 'encoding=', 'step=', 'delimiter='))
+                            
+    for opt, optarg in opts:
+      if opt in ('-n', '--lines', '--rows'): lines = int(optarg)
+      elif opt in ('-d', '--delimiter'): de = optarg
+      elif opt in ('-s', '--skip'): skip = int(optarg)
+      elif opt in ('-S', '--step'): step = int(optarg)
+      elif opt in ('-E', '--encoding'): encoding = optarg
+      elif opt == '-v': cli.verbose = True
+      else: return self.usage(cmd)
+
+    if step <= 1:
+      def xprint(ta):
+        cli._print(de.join(ta))
+    else:
+      def xprint(rows):
+        for ta in rows: cli._print(de.join(ta))
+        
+    fm = LocalFolder()
+
+    ct = 0
+    for tf in args:
+      for ta in fm.read_tsv_lines(
+          tf, skip=skip, step=step, lines=lines, encoding=encoding):
+        xprint(ta)
+        ct += 1
+
+    if cli.verbose:
+      log.info('%d time repeat.', ct)
+    
   complete_cd = complete_host
   complete_lcd = complete_host
   complete_lls = complete_host
@@ -1044,6 +1270,7 @@ cp -R [-pn] <src> .. <dst-dir>
   complete_cat = complete_host
   complete_grep = complete_host
   complete_find = complete_host
+  complete_tsv = complete_host
   
   complete_echo = complete_host
   complete_cp = complete_host

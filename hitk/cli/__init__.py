@@ -25,11 +25,11 @@ appname = 'cli'
 
 if sys.version_info < (3, 0):
     import ConfigParser as configparser
-    from Queue import Queue, Empty
+    from Queue import Queue, LifoQueue, PriorityQueue, Empty, Full
 
 else:
     import configparser
-    from queue import Queue, Empty
+    from queue import Queue, LifoQueue, PriorityQueue, Empty, Full
     unicode = str
 
 
