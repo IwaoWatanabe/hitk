@@ -5,7 +5,7 @@
 """
 
 from __future__ import print_function
-import ctypes, functools, os, re, sys, threading, weakref, zipfile
+import ctypes, functools, logging, os, re, sys, threading, weakref, zipfile
 import concurrent.futures
 from logging import DEBUG, INFO, WARN, WARNING, ERROR, FATAL, CRITICAL
 from traceback import format_exc
@@ -56,6 +56,8 @@ trace = print
 ui = __import__(__name__)
 
 platform = sys.platform
+
+log = logging.getLogger(__name__)
 
 def trace_text(e):
   """スタック・トレースのテキストを入手する"""
@@ -275,60 +277,63 @@ fonts = weakref.WeakValueDictionary()
 
 
 def find_font(name):
-    """
+  """
 tkが認識する形式のフォント名を渡して、tkfontオブジェクトを入手する。
 あるいは、family-size-weight-slant の形で指定するフォントをロードする。
 過去にロードしていれば、同じインスタンスを返す
 """
-    if name in fonts:
-        font = fonts[name]
-        if font: return font
-    try:
-        font = tkfont.nametofont(name)
-        if verbose: trace('name of font', font, type(font))
-        return font
-    except TclError:
-        enc = sys.getfilesystemencoding()
-        fa = name.split('-')
-        # trace(name, fa)
-        while len(fa) < 4: fa.append('')
-        (family, size, w, s) = fa
-        try:
-            if type(family) == unicode: family = family.encode(enc)
-            if type(name) == unicode: name = name.encode(enc)
-        except:
-            pass
+  if name in fonts:
+    font = fonts[name]
+    if font: return font
+  try:
+    font = tkfont.nametofont(name)
+    if verbose: trace('name of font', font, type(font), name)
+    return font
+  except TclError:
+    enc = sys.getfilesystemencoding()
+    fa = name.split('-')
+    # trace(name, fa)
+    while len(fa) < 4: fa.append('')
+    (family, size, w, s) = fa
 
-        weight = 'bold' if w == 'b' or w == 'bold' else 'normal'
-        slant = 'italic' if s == 'i' or w == 'italic' else 'roman'
-        font = tkfont.Font(name=name, family=family, size=size, weight=weight, slant=slant)
-        if verbose: trace('tkfont', font, type(font))
-        _save_font(font)
-        return font
+    if sys.version_info < (3, 0):
+      try:
+        if type(family) == unicode: family = family.encode(enc)
+        if type(name) == unicode: name = name.encode(enc)
+      except:
+        pass
+
+  weight = 'bold' if w == 'b' or w == 'bold' else 'normal'
+  slant = 'italic' if s == 'i' or w == 'italic' else 'roman'
+  if not size: size = 9
+  font = tkfont.Font(name=name, family=family, size=size, weight=weight, slant=slant)
+  if verbose: trace('tkfont', font, type(font))
+  _save_font(font)
+  return font
 
 
 def _save_font(font):
-    fn = font.name
-    if type(fn) == str:
-        try:
-            enc = sys.getfilesystemencoding()
-            if pyver == 2: fn = unicode(fn, enc)
-        except NameError:
-            pass
+  fn = font.name
+  if type(fn) == str:
+    try:
+      enc = sys.getfilesystemencoding()
+      if pyver == 2: fn = unicode(fn, enc)
+    except NameError:
+      pass
 
-    if fn in fonts: return
-    fonts[fn] = font
+  if fn in fonts: return
+  fonts[fn] = font
 
 
 def find_bold_font(font):
-    """指定するフォントのボールドフォントを入手する"""
-    fa = font.actual()
-    if fa['weight'] == 'bold': return font
-    family = fa['family']
-    size = int(fa.get('size', 10))
-    weight = 'b'
-    slant = 'i' if fa['slant'] == 'italic' else 'r'
-    return find_font('%s-%d-%s-%s' % (family, abs(size), weight, slant))
+  """指定するフォントのボールドフォントを入手する"""
+  fa = font.actual()
+  if fa['weight'] == 'bold': return font
+  family = fa['family']
+  size = int(fa.get('size', 10))
+  weight = 'b'
+  slant = 'i' if fa['slant'] == 'italic' else 'r'
+  return find_font('%s-%d-%s-%s' % (family, abs(size), weight, slant))
 
 
 class _MenuItem:
@@ -385,7 +390,7 @@ class StringRef(object):
     def __set__(self, instance, value): self._vars[instance].set(value)
     def __del__(self, instance): del self._vars[instance]
     
-  
+
 # 別スレッドからGUI処理を受け取る間隔(ms)
 _polling_interval = 300
 
@@ -425,10 +430,11 @@ def _polling_queues():
 class _Toplevel(tk.Toplevel):
     """ トップレベルウィンドウの件数を数えて、なくなったら終了させる"""
     def __init__(self, master=None, *args, **kargs):
-        tk.Toplevel.__init__(self, master, *args, **kargs)
-        self.is_dialog = isinstance(master, _Toplevel)
-        self.__inc()
-        self.focused_widget = self
+      if not master: master = _find_root()
+      tk.Toplevel.__init__(self, master, *args, **kargs)
+      self.is_dialog = isinstance(master, _Toplevel)
+      self.__inc()
+      self.focused_widget = self
 
     def __inc(self):
         if self.is_dialog: return
@@ -1031,7 +1037,12 @@ class UIClient(object):
   def release(self):
     pass
 
-    
+  
+class AppException(Exception):
+  """アプリケーション例外のベースクラス """
+  pass
+
+
 class App(UIClient):
   """GUIアプリケーションのユーザコードが継承するクラス"""
 
@@ -1047,7 +1058,15 @@ class App(UIClient):
       except: pass
       
     top.after_idle(top.tkraise) # ウィンドウを手前にもってくる
-    root.mainloop() # イベントループに入る
+    retry = 1
+    while retry:
+      try:
+        root.mainloop() # イベントループに入る
+        retry = 0
+      except Exception as e:
+        msg, title = trace_text(e)
+        trace('Warn: ', title, ' in mainloop ', msg)
+
     if verbose: trace('done.')
 
   @classmethod
@@ -1092,20 +1111,27 @@ _frame_count = 0
 
 verbose = int(os.environ.get('VERBOSE', '0'))
 
-# アプリケーション全体制御用のウィジェット
-try:
-  root = None
-  root = tk.Tk()
-  root.state('withdrawn')  # 普段から表示しない
+root = None
+style = None
 
-except TclError as e:
-  if verbose:
-    sys.stderr.write('WARN: while Tk initialize: %s\n%s\n%s\nroot:%s\n' % (
+def _find_root(*args,**opts):
+  """アプリケーション全体制御用のウィジェットの作成
+  パッケージを取り込んだだけでルートを作成しないように調整している
+  """
+  global root, style
+  try:
+    if root: return root
+    root = tk.Tk(*args,**opts)
+    root.state('withdrawn')  # 普段から表示しない
+
+  except TclError as e:
+    if verbose:
+      sys.stderr.write('WARN: while Tk initialize: %s\n%s\n%s\nroot:%s\n' % (
         e, format_exc(), '\n'.join(sys.path), root))
-  else:
-    sys.stderr.write('WARN: while Tk initialize: %s\n' % e)
+    else:
+      sys.stderr.write('WARN: while Tk initialize: %s\n' % e)
 
-style = ttk.Style(root)
+  style = ttk.Style(root)
 
 
 def setup_theme(wi):
@@ -1151,7 +1177,7 @@ if platform == 'darwin':
 
 def entry_focus(ent):
   """Entryにフォーカスを当てる"""
-  ent.focus()
+  ent.focus_set()
   ent.select_range(0, END)
   ent.icursor(END)
   return ent
@@ -1208,7 +1234,8 @@ class _EntryPopup():
       ent.bind('<Menu>', popup_app)
     except:
       pass
-
+    ent.shortcut = None
+    
   def cut(self):
     buf = self.buf
     if not buf.select_present(): return
@@ -1339,16 +1366,24 @@ def register_text_popup(buf):
 
 
 try:
-  from idlelib.ToolTip import ToolTip, ListboxToolTip
+  if sys.version_info < (3, 0):
+    from idlelib.ToolTip import ToolTip, ListboxToolTip
 
-  def set_tool_tip(btn, text):
-    """ツールチップを表示する"""
-    if type(text) == list or type(text) == tuple:
-      ListboxToolTip(btn, text)
-    else:
-      ToolTip(btn, text)
+    def set_tool_tip(btn, text):
+      """ツールチップを表示する"""
+      if type(text) == list or type(text) == tuple:
+        ListboxToolTip(btn, text)
+      else:
+        ToolTip(btn, text)
+  else:
+    from idlelib.tooltip import Hovertip
+
+    def set_tool_tip(btn, text):
+      """ツールチップを表示する"""
+      Hovertip(btn, text)
+
 except ImportError as e:
-  syserr.write("WARN: cannot use tooltip: %s\n" % e)
+  sys.stderr.write("WARN: cannot use tooltip: %s\n" % e)
 
   def set_tool_tip(btn, text):
     pass
@@ -1546,19 +1581,352 @@ def register_tree_bind(tree):
     tree.key_timer = None
     tree.key_string = ''
     for bk, proc in (
-        ('<Control-Up>', __node_up),
-        ('<Control-Down>', __node_down),
+        ('<\Control-Up>', __node_up),
+        ('<\Control-Down>', __node_down),
         ('<Shift-Up>', __node_up),
         ('<Shift-Down>', __node_down),
         ('<space>', __node_toggle_select),
-        ('<Control-Home>', __node_key_action),
-        ('<Control-End>', __node_key_action),
+        ('<\Control-Home>', __node_key_action),
+        ('<\Control-End>', __node_key_action),
         ('<Home>', __node_key_action),
         ('<End>', __node_key_action),
         ('<Next>', __node_key_action),
         ('<Prior>', __node_key_action),
     ): tree.bind(bk, proc)
 
-    tree.bind('<KeyPress>', __any_key_press, '+')
+    if not hasattr(tree, 'cell'):
+      tree.bind('<KeyPress>', __any_key_press, '+')
 
   return tree
+
+
+
+def _isnumeric(s):
+  """test if a string is numeric"""
+  for c in s:
+    if c in '0123456789-.':
+      numeric = True
+    else:
+      return False
+  return numeric
+
+
+def _change_numeric(data):
+  """if the data to be sorted is numeric change to float"""
+  # change child to a float
+  return [(float(cd), iid) if cd else ('', iid) for cd, iid in data]
+
+
+def sorter(tbl, tcol, col, descending=0, change_float=0):
+  """sort tree contents when a column header is clicked on"""
+  # grab values to sort
+  if col == '#0':
+    data = [(tbl.item(iid, 'text'), iid) for iid in tbl.get_children('')]
+  else:
+    data = [(tbl.set(iid, col), iid) for iid in tbl.get_children('')]
+
+  if log: log.debug('sort %s,%s,%s,%s', tcol, col, descending, change_float)
+  # trace(data )
+  # if the data to be sorted is numeric change to float
+  if change_float: data = _change_numeric(data)
+  # now sort the data in place
+  data.sort(reverse=descending)
+  for pos, item in enumerate(data): tbl.move(item[1], '', pos)
+  # switch the heading so that it will sort in the opposite direction
+  tbl.heading(tcol, command=lambda tcol=tcol, col=col: sorter(tbl, tcol, col, int(not descending), change_float))
+
+
+
+def _cell_info(ev, tbl):
+  item = tbl.identify('item', ev.x, ev.y)
+  column = tbl.identify('column', ev.x, ev.y)
+  return item, column
+
+
+cell_debug = int(os.environ.get('CELL_DEBUG', '0'))
+
+class _EditableCell():
+  """編集可能なセルをテーブルに拡張する"""
+
+  def __init__(self, tbl, **opts):
+    self.table = tbl
+    var = tk.StringVar()
+    self._cell = cell = tk.Entry(tbl, textvariable=var, bd=1, )
+    cell._var = var
+    cell.timer = None
+    cell.info = None
+    cell._editinfo = None
+    cell.keysym = None
+    self._retry = 0
+    cell.bind('<KeyPress>', self._key_press)
+    cell.bind('<FocusIn>', self._cell_focus_in)
+    cell.bind('<FocusOut>', self._cell_focus_out)
+    register_entry_popup(cell)
+
+    self.delay = opts.get('resize_delay', 300)
+
+    for cond, proc in (
+        ('<KeyPress>', self._key_press),
+        ('<Next>', self._key_press),
+        ('<Prior>', self._key_press),
+        ('<\Control-Home>', self._key_press),
+        ('<\Control-End>', self._key_press),
+        ('<MouseWheel>', lambda ev, cell=cell: cell.place_forget()),
+    ): tbl.bind(cond, proc, '+')
+
+    for cond, proc in (
+        ('<Home>', self._key_press),
+        ('<End>', self._key_press),
+        ('<Button-1>', self._select),
+        ('<Configure>', self._resize),
+    ): tbl.bind(cond, proc)
+
+  @property
+  def font(self):
+    fn = self._cell.cget('font')
+    font = ui.find_font(fn)
+    return font
+    
+  @font.setter
+  def font(self, font):
+    self._cell.config(font=font)
+
+  def _select(self, ev):
+    self._cell.info = info = _cell_info(ev, self.table)
+    if not info[1] == '#0': self._cell_update(with_value=True)
+
+  def _resize(self, ev):
+    cell = self._cell
+    tbl = self.table
+    if cell_debug: trace('table resize', tbl.winfo_width(), 'x', tbl.winfo_height())
+    # trace(ev.x, ev.y, ev.width, ev.height)
+    if not cell.info: cell.place_forget(); return
+    if cell.timer: cell.after_cancel(cell.timer)
+    cell.timer = cell.after(self.delay, self._cell_update)
+
+  def _cell_update(self, with_value=False):
+    """選択されたセル位置を調整する"""
+    cell = self._cell
+    tbl = self.table
+    #cell.place_forget()
+    if not cell.info: cell.place_forget(); return
+    item, column = cell.info[:2]
+
+    tw, th, xv, yv = tbl.winfo_width(), tbl.winfo_height(), tbl.xview(), tbl.yview()
+    if cell_debug: trace(tw, th, 'xview', xv, xv[0] * tw, xv[1] * tw, 'yview', yv, yv[0] * th, yv[1] * th)
+
+    bbox1 = tbl.bbox(item)  # 行全体の位置
+    if not bbox1:
+      tbl.see(item)  # 見える位置に移動させる
+      bbox1 = tbl.bbox(item)  # 行全体の位置
+
+    if cell_debug: trace('table-box', bbox1, 'item', item, 'column', column, 'info', cell.info)
+    bbox = tbl.bbox(item, column)
+    if not bbox:
+      if cell_debug: trace('no cell-box')
+      return
+
+    x, y, w, h = bbox
+    if cell_debug: trace('cell-box', bbox, column)
+
+    if x < 0:
+      # 画面外にあるので、横スクロールさせる
+      rw = bbox1[2] - bbox1[0]  # 全体の幅
+      rx = 0 if column == '#1' else abs(bbox1[0] - bbox[0])  # 表示開始位置
+      trace('left-scroll: rx', rx, 'rw', rw, 'post', float(rx) / rw)
+      tbl.xview_moveto(float(rx) / rw)
+      cell.after_idle(lambda wv=with_value: self._cell_update(wv))
+      return
+    
+    if x > tw:
+      # 画面外にあるので、横スクロールさせる
+      rw = bbox1[2] - bbox1[0]  # 全体の幅
+      rx = abs(bbox1[0] + bbox[0]) + bbox[2]  # 表示開始位置
+      if cell_debug: trace('over: rx', rx, 'rw', rw, 'post', float(rx) / rw)
+      tbl.xview_moveto(float(rx) / rw)
+      cell.after_idle(lambda wv=with_value: self._cell_update(wv))
+      return
+
+    bd = 3 if sys.platform == 'darwin' else 1
+    
+    #cell.place_forget()
+    cell.place(x=x - bd, y=y - bd, width=w + bd * 2, height=h + bd * 2)
+    cell.update()
+    if with_value and column != '#0':
+      cell.after_idle(lambda iid=item, cid=column: cell._var.set(tbl.set(iid, cid)))
+
+  def _cell_active(self):
+    cell = self._cell
+    keysym = cell.keysym
+    cell.keysym = None
+    if keysym:
+      cell.after_idle(lambda wi=cell,sym=keysym: wi.event_generate('<KeyPress>', keysym=sym))
+    else:
+      cell.select_range(0, END)
+    cell.icursor(END)
+    cell.config(bg='gray')
+    
+  def _cell_focus_in(self, ev):
+    cell = self._cell
+    tbl = self.table
+    if not cell.info: return
+    cell._editinfo = cell.info
+    cell.after_idle(self._cell_active)
+
+  def _cell_focus_out(self, ev):
+    cell = self._cell
+    tbl = self.table
+    cell.after_idle(lambda wi=cell: wi.config(bg='snow'))
+    if not cell._editinfo: return
+    item, column = cell._editinfo[:2]
+    value = cell._var.get()
+    tbl.set(item, column, value)
+
+  def _key_press(self, ev):
+    '''cellに割り当てるキー操作'''
+    #if ev.state & 4 == 4: return
+    cell = self._cell
+    tbl = self.table
+    ewi = ev.widget
+
+    # ----------- 内部手続き定義　ここから
+
+    def _get_cell_info(keysym=None, with_shift=False, with_ctrl=False, tab_action=True):
+      """cell位置を入手する"""
+      dc = ( )
+      if keysym:
+        dc = tbl.cget('displaycolumns')
+        if dc[0] == '#all': dc = tbl.cget('columns')
+        if cell_debug: trace('keysym:', keysym, 'tab:', tab_action, 'ctrl:', with_ctrl, 'shift:', with_shift)
+
+      if cell.info:
+        iid, column = cell.info
+      else:
+        iid = tbl.focus()
+        column = '#1'
+      
+      def _cpos(cn):
+        return int(cn[1:]) - 1 if cn.startswith('#') else dc.index(column)
+
+      dflag = platform == 'darwin' and tab_action and with_ctrl
+      
+      if cell_debug: trace(iid, column)
+      if ('Left' == keysym and tab_action and with_ctrl) or ('a' == keysym and dflag):
+        iid = tbl.focus()
+        column = '#1'
+        
+      elif ('Right' == keysym and tab_action and with_ctrl) or ('e' == keysym and dflag):
+        iid = tbl.focus()
+        column = '#%d' % len(dc)
+        
+      elif ('Right' == keysym and tab_action) or ('Tab' == keysym and not with_shift) or ('f' == keysym and dflag):
+        pos = 1 + _cpos(column)
+        if pos < len(dc): column = dc[pos]
+        if not tab_action:
+          tbl.after_idle(lambda wi=tbl, sym='F2': wi.event_generate('<KeyPress>', keysym=sym))
+
+      elif ('Left' == keysym and tab_action) or ('Tab' == keysym and with_shift) or ('b' == keysym and dflag):
+        pos = _cpos(column)
+        if pos > 0: column = dc[pos - 1]
+        if not tab_action:
+          tbl.after_idle(lambda wi=tbl, sym='F2': wi.event_generate('<KeyPress>', keysym=sym))
+            
+      elif ('p' == keysym and dflag) or ('Return' == keysym and with_shift):
+          tbl.after_idle(lambda wi=tbl, sym='Up': wi.event_generate('<KeyPress>', keysym=sym))
+          
+      elif ('n' == keysym and dflag) or ('Return' == keysym and not with_shift):
+          tbl.after_idle(lambda wi=tbl, sym='Down': wi.event_generate('<KeyPress>', keysym=sym))
+        
+      elif 'Up' == keysym:
+        iid = tbl.focus()
+        iid = tbl.prev(iid)
+        if not tab_action and iid:
+          tbl.focus(iid)
+          tbl.see(iid)
+          tbl.focus_set()
+          tbl.after_idle(lambda wi=tbl, sym='F2': wi.event_generate('<KeyPress>', keysym=sym))
+
+      elif 'Down' == keysym:
+        iid = tbl.focus()
+        iid = tbl.next(iid)
+        if not tab_action and iid:
+          tbl.focus(iid)
+          tbl.see(iid)
+          tbl.focus_set()
+          tbl.after_idle(lambda wi=tbl, sym='F2': wi.event_generate('<KeyPress>', keysym=sym))
+
+      elif 'Next' == keysym:
+        iid = tbl.focus()
+      
+      elif 'Prior' == keysym:
+        iid = tbl.focus()
+      
+      elif 'Home' == keysym:
+        iid = tbl.focus()
+        if tab_action and (ev.state & 4 != 4): column = '#1'
+      
+      elif 'End' == keysym:
+        iid = tbl.focus()
+        if tab_action and (ev.state & 4 != 4): column = '#%d' % len(dc)
+      
+      elif 'Escape' == keysym:
+        cell._editinfo = None
+        tbl.focus_set()
+
+      elif 'F2' == keysym and tab_action:
+        cell.focus_set()
+        try:
+          fn = tbl.tag_configure('normal')['font']
+          if type(fn) in (str, unicode, tuple):
+            fn = ui.find_font(fn)
+          cell.font = fn
+        except: pass
+
+      elif tab_action and not with_ctrl and keysym != '??':
+        cell.keysym = keysym
+        cell.focus_set()
+        cell.update()
+
+      return iid, column
+
+    # ----------- 内部手続き定義　ここまで
+    
+    if cell_debug:
+      trace('columns:', tbl.cget('columns'))
+      trace('displaycolumns:', tbl.cget('displaycolumns'))
+      trace('cell-key', ev.serial, ev.keysym, ev.widget)
+    info = _get_cell_info(ev.keysym, (ev.state & 1) == 1, (ev.state & 4) == 4, ewi == tbl)
+    if cell_debug: trace(info)
+    cell.info = info
+    if ewi == tbl or ev.keysym == 'Escape':
+      self._cell_update(with_value=True)
+
+  def _init_update(self):
+    tbl = self.table
+    tbl.focus_set()
+    iid = tbl.focus()
+
+    if not iid and self._retry < 3:
+      tbl.after_idle(self, cell._init_update)
+      self._retry += 1
+      return
+
+    column = '#1'
+    self._cell.info =  iid, column
+    tbl.after_idle(lambda wv=1: self._cell_update(wv))
+    
+def register_editable_cell(tbl):
+  cell = _EditableCell(tbl)
+  tbl.cell = cell
+  tbl.after_idle(cell._init_update)
+  return tbl
+
+
+if __name__ == '__main__':
+    class EmptyApp(UIClient): pass
+    class EmptyApp2(App): pass
+
+    App.start(EmptyApp)
+    EmptyApp2.run()
+
+  
