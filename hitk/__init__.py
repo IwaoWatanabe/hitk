@@ -7,6 +7,8 @@
 from __future__ import print_function
 import ctypes, functools, logging, os, re, sys, threading, weakref, zipfile
 import concurrent.futures
+from datetime import datetime as _dt
+from time import time as now
 from logging import DEBUG, INFO, WARN, WARNING, ERROR, FATAL, CRITICAL
 from traceback import format_exc
 
@@ -179,60 +181,60 @@ def show_error(prompt, title='error', **options):
 表示内容はクリップボードに設定される
 """
   if isinstance(prompt, Exception):
-      prompt, title = trace_text(prompt)
+    prompt, title = trace_text(prompt)
   root.clipboard_clear()
   root.clipboard_append(prompt)
   messagebox.showerror(title, prompt, **options)
 
 
 def show_warnig(prompt, title='warning', **options):
-    """ 警告ダイアログ表示
+  """ 警告ダイアログ表示
 表示内容はクリップボードに設定される
  """
-    root.clipboard_clear()
-    root.clipboard_append(prompt)
-    messagebox.showwarning(title, prompt, **options)
+  root.clipboard_clear()
+  root.clipboard_append(prompt)
+  messagebox.showwarning(title, prompt, **options)
 
 
 def show_info(prompt, title='info', **options):
-    """ 情報ダイアログ表示
+  """ 情報ダイアログ表示
 表示内容はクリップボードに設定される
  """
-    root.clipboard_clear()
-    root.clipboard_append(prompt)
-    messagebox.showinfo(title, prompt, **options)
+  root.clipboard_clear()
+  root.clipboard_append(prompt)
+  messagebox.showinfo(title, prompt, **options)
 
 
 def ask_ok_cancel(prompt, title='ask', **options):
-    """ [OK] [Cancel]　ボタン付の質問ダイアログ表示 """
-    return messagebox.askokcancel(title, prompt, **options)
+  """ [OK] [Cancel]　ボタン付の質問ダイアログ表示 """
+  return messagebox.askokcancel(title, prompt, **options)
 
 
 def ask_yes_no(prompt, title='ask', **options):
-    """ [Yes] [No]　ボタン付の質問ダイアログ表示 """
-    return messagebox.askyesno(title, prompt, **options)
+  """ [Yes] [No]　ボタン付の質問ダイアログ表示 """
+  return messagebox.askyesno(title, prompt, **options)
 
 
 def ask_retry_cacnel(prompt, title='retry?', **options):
-    """ [Retry] [Cancel]　ボタン付の警告ダイアログ表示 """
-    return messagebox.askretrycancel(title, prompt, **options)
+  """ [Retry] [Cancel]　ボタン付の警告ダイアログ表示 """
+  return messagebox.askretrycancel(title, prompt, **options)
 
 
 def ask_abort_retry_ignore(prompt, title='retry?', **options):
-    """ [Abort] [Retry] [Ignore]　ボタン付の警告ダイアログ表示 """
-    options['type'] = messagebox.ABORTRETRYIGNORE
-    options['icon'] = messagebox.WARNING
-    return messagebox.askquestion(title, prompt, **options)
+  """ [Abort] [Retry] [Ignore]　ボタン付の警告ダイアログ表示 """
+  options['type'] = messagebox.ABORTRETRYIGNORE
+  options['icon'] = messagebox.WARNING
+  return messagebox.askquestion(title, prompt, **options)
 
 
 def ask_color(color=None, **options):
-    """ 色選択ダイアログ表示 """
-    return colorchooser.askcolor(color, **options)
+  """ 色選択ダイアログ表示 """
+  return colorchooser.askcolor(color, **options)
 
 
 def input_text(prompt, title='input', **options):
-    """ テキスト入力のダイアログ表示 """
-    return simpledialog.askstring(title, prompt, **options)
+  """ テキスト入力のダイアログ表示 """
+  return simpledialog.askstring(title, prompt, **options)
 
   
 def ask_open_file(multiple=False, **options):
@@ -428,105 +430,105 @@ def _polling_queues():
 
 
 class _Toplevel(tk.Toplevel):
-    """ トップレベルウィンドウの件数を数えて、なくなったら終了させる"""
-    def __init__(self, master=None, *args, **kargs):
-      if not master: master = _find_root()
-      tk.Toplevel.__init__(self, master, *args, **kargs)
-      self.is_dialog = isinstance(master, _Toplevel)
-      self.__inc()
-      self.focused_widget = self
+  """ トップレベルウィンドウの件数を数えて、なくなったら終了させる"""
+  def __init__(self, master=None, *args, **kargs):
+    if not master: master = _find_root()
+    tk.Toplevel.__init__(self, master, *args, **kargs)
+    self.is_dialog = isinstance(master, _Toplevel)
+    self.__inc()
+    self.focused_widget = self
 
-    def __inc(self):
-        if self.is_dialog: return
-        global _frame_count, root
-        _frame_count += 1
-        try:
-            root.winfo_id()
-        except TclError as e:
-            if verbose: trace('TRACE: %s (%s)' % (e, e.__class__.__name__), file=sys.err)
-            # root が利用できなくなっているようだから置き換える
-            root = self._root()
-            root.update()
-            root.withdrawn()
+  def __inc(self):
+    if self.is_dialog: return
+    global _frame_count, root
+    _frame_count += 1
+    try:
+      root.winfo_id()
+    except TclError as e:
+      if verbose: trace('TRACE: %s (%s)' % (e, e.__class__.__name__), file=sys.err)
+      # root が利用できなくなっているようだから置き換える
+      root = self._root()
+      root.update()
+      root.withdrawn()
 
-    def exit(self):
-        root.quit()
-        if verbose: trace('TRACE: root quit.', file=sys.stderr)
+  def exit(self):
+    root.quit()
+    if verbose: trace('TRACE: root quit.', file=sys.stderr)
 
-    def __dec(self):
-        if self.is_dialog: return
-        global _frame_count
-        _frame_count -= 1
-        if _frame_count <= 0: self.exit()
+  def __dec(self):
+    if self.is_dialog: return
+    global _frame_count
+    _frame_count -= 1
+    if _frame_count <= 0: self.exit()
 
-    def destroy(self):
-        """widgetを破棄する"""
-        try:
-            if hasattr(self.cc, 'polling_timer'):
-                root.after_cancel(self.cc.polling_timer)
-            self.cc._release()
-        except:
-            pass
-        self.hide()
-        tk.Misc.destroy(self)
+  def destroy(self):
+    """widgetを破棄する"""
+    try:
+      if hasattr(self.cc, 'polling_timer'):
+        root.after_cancel(self.cc.polling_timer)
+      self.cc._release()
+    except:
+      pass
+    self.hide()
+    tk.Misc.destroy(self)
 
-    def hide(self):
-        """表示を隠す"""
-        # http://www.blog.pythonlibrary.org/2012/07/26/tkinter-how-to-show-hide-a-window/
-        self.update()
-        self.withdraw()
-        self.__dec()
+  def hide(self):
+    """表示を隠す"""
+    # http://www.blog.pythonlibrary.org/2012/07/26/tkinter-how-to-show-hide-a-window/
+    self.update()
+    self.withdraw()
+    self.__dec()
 
-    def show(self):
-        """表示する"""
-        self.update()
-        self.deiconify()
-        self.__inc()
+  def show(self):
+    """表示する"""
+    self.update()
+    self.deiconify()
+    self.__inc()
+    
+  def dispose(self):
+    self.destroy()
 
-    def dispose(self):
-        self.destroy()
+  def wakeup(self):
+    try:
+      if self.wm_state() == 'iconic':
+        self.wm_withdraw()
+        self.wm_deiconify()
+      self.tkraise()
+      self.focused_widget.focus_set()
+    except TclError:
+      # This can happen when the window menu was torn off.
+      # Simply ignore it.
+      pass
 
-    def wakeup(self):
-        try:
-            if self.wm_state() == 'iconic':
-                self.wm_withdraw()
-                self.wm_deiconify()
-            self.tkraise()
-            self.focused_widget.focus_set()
-        except TclError:
-            # This can happen when the window menu was torn off.
-            # Simply ignore it.
-            pass
-
-    def _set_transient(self, master, relx=0.5, rely=0.3):
-        if not master: return
-        widget = self
-        widget.withdraw()  # Remain invisible while we figure out the geometry
-        widget.transient(master)
-        widget.update_idletasks()  # Actualize geometry information
-        if master.winfo_ismapped():
-            m_width = master.winfo_width()
-            m_height = master.winfo_height()
-            m_x = master.winfo_rootx()
-            m_y = master.winfo_rooty()
-        else:
-            m_width = master.winfo_screenwidth()
-            m_height = master.winfo_screenheight()
-            m_x = m_y = 0
-        w_width = widget.winfo_reqwidth()
-        w_height = widget.winfo_reqheight()
-        x = m_x + (m_width - w_width) * relx
-        y = m_y + (m_height - w_height) * rely
-        if x + w_width > master.winfo_screenwidth():
-            x = master.winfo_screenwidth() - w_width
+  def _set_transient(self, master, relx=0.5, rely=0.3):
+    if not master: return
+    widget = self
+    widget.withdraw()  # Remain invisible while we figure out the geometry
+    widget.transient(master)
+    widget.update_idletasks()  # Actualize geometry information
+    if master.winfo_ismapped():
+      m_width = master.winfo_width()
+      m_height = master.winfo_height()
+      m_x = master.winfo_rootx()
+      m_y = master.winfo_rooty()
+    else:
+      m_width = master.winfo_screenwidth()
+      m_height = master.winfo_screenheight()
+      m_x = m_y = 0
+    w_width = widget.winfo_reqwidth()
+    w_height = widget.winfo_reqheight()
+    x = m_x + (m_width - w_width) * relx
+    y = m_y + (m_height - w_height) * rely
+    if x + w_width > master.winfo_screenwidth():
+      x = master.winfo_screenwidth() - w_width
         # elif x < 0:
         #    x = 0
-        if y + w_height > master.winfo_screenheight():
-            y = master.winfo_screenheight() - w_height
-        elif y < 0:
-            y = 0
-        widget.geometry('+%d+%d' % (x, y))
-        widget.deiconify()  # Become visible at the desired location
+    if y + w_height > master.winfo_screenheight():
+      y = master.winfo_screenheight() - w_height
+    elif y < 0:
+      y = 0
+    widget.geometry('+%d+%d' % (x, y))
+    widget.deiconify()  # Become visible at the desired location
 
 
 class _AsyncTask:
@@ -607,6 +609,43 @@ def _top_bind(top):
   top.bind_class('TEntry', '<Control-a>', _entry_all_select)
   top.bind_class('TCombobox', '<Control-a>', _entry_all_select)
   top.bind_class('Text', '<Control-a>', _text_all_select)
+
+
+class _TkTimer():
+  '''コマンド付きのタイマー操作'''
+  def __init__(self, cmd, delay=None, proc=None, interval=None, repeat=False):
+    self.cmd = cmd
+    self.interval = interval # sec
+    self.proc = proc
+    self.timer = None
+    self.delay = delay # sec
+    self.count = 0
+    self.repeat = True if interval else repeat
+
+  def _timeout(self):
+    try:
+      self.count += 1
+      self.proc(self.cmd, self)
+    finally:
+      if self.repeat:
+        last = self.last
+        delay = self.interval -  (now() - last)
+        while delay < 0: delay += self.interval
+        self.timer = root.after(int(delay * 1000), self._timeout)
+      
+  def start(self):
+    delay = self.interval if self.repeat else self.delay
+    self.last = now()
+    self.timer = root.after(int(delay * 1000), self._timeout)
+
+  def stop(self):
+    if not self.timer: return
+    root.after_cancel(self.timer)
+    self.timer = None
+
+  def restart():
+    self.stop()
+    self.start()
 
     
 class _TkAppContext(_AppContext):
@@ -695,9 +734,9 @@ class _TkAppContext(_AppContext):
     master = kwd.pop('master', self.top)
 
     if opts or kwd:
-        app = AppClass(*opts, **kwd)
+      app = AppClass(*opts, **kwd)
     else:
-        app = AppClass()
+      app = AppClass()
 
     cc = self.__class__()
     cc._apps = []
@@ -877,6 +916,12 @@ param: entries メニュー項目を定義した配列
 
   def unbind(self, sequence, funcid=None):
     self.top.unbind(sequence, funcid)
+
+  def timer(self, cmd, delay=None, proc=None, interval=None, repeat=False):
+    # タイマーの生成
+    if not proc: proc = self._apps[-1].perform
+    tt = _TkTimer(cmd, delay, proc, interval, repeat)
+    return tt
 
   def close(self):
     self.remove_client()
@@ -1513,8 +1558,6 @@ def __node_key_action(ev):
       tree.focus(iid)
       tree.see(iid)
       if ev.state & 4 == 4: tree.selection_set(iid)
-      # ctrl-Home
-      #return 'break'
 
   elif 'End' == keysym:
     items = tree.get_children()
@@ -1523,8 +1566,6 @@ def __node_key_action(ev):
       tree.focus(iid)
       tree.see(iid)
       if ev.state & 4 == 4: tree.selection_set(iid)
-      # ctrl-Home
-      #return 'break'
 
   elif 'Next' == keysym:
     h = tree.winfo_height()
@@ -1588,8 +1629,6 @@ def register_tree_bind(tree):
         ('<space>', __node_toggle_select),
         ('<\Control-Home>', __node_key_action),
         ('<\Control-End>', __node_key_action),
-        ('<Home>', __node_key_action),
-        ('<End>', __node_key_action),
         ('<Next>', __node_key_action),
         ('<Prior>', __node_key_action),
     ): tree.bind(bk, proc)
@@ -1667,16 +1706,10 @@ class _EditableCell():
 
     for cond, proc in (
         ('<KeyPress>', self._key_press),
-        ('<Next>', self._key_press),
-        ('<Prior>', self._key_press),
-        ('<\Control-Home>', self._key_press),
-        ('<\Control-End>', self._key_press),
         ('<MouseWheel>', lambda ev, cell=cell: cell.place_forget()),
     ): tbl.bind(cond, proc, '+')
 
     for cond, proc in (
-        ('<Home>', self._key_press),
-        ('<End>', self._key_press),
         ('<Button-1>', self._select),
         ('<Configure>', self._resize),
     ): tbl.bind(cond, proc)
@@ -1921,6 +1954,10 @@ def register_editable_cell(tbl):
   tbl.after_idle(cell._init_update)
   return tbl
 
+
+def strftime(pattern="%Y-%m%d-%H%M", unixtime=None):
+    tt = _dt.fromtimestamp(unixtime) if unixtime else _dt.now()
+    return tt.strftime(pattern)
 
 if __name__ == '__main__':
     class EmptyApp(UIClient): pass
