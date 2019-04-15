@@ -33,14 +33,14 @@ else:
     unicode = str
 
 
-verbose = os.environ.get("DEBUG", False)
+verbose = os.environ.get('DEBUG', False)
 
 inteactive = True
 
 debugout = None
 
 def trace(msg, *args, **kwarg):
-    file = kwarg.pop("file", sys.stderr)
+    file = kwarg.pop('file', sys.stderr)
     if args:
         if msg and '%' in msg:
             print(msg % args, file=file, **kwarg)
@@ -51,7 +51,7 @@ def trace(msg, *args, **kwarg):
 
         
 def _print(*args, **kwarg):
-    out = kwarg.pop("file", sysout)
+    out = kwarg.pop('file', sysout)
     if args:
         print(*args, file=out, **kwarg)
     else:
@@ -60,8 +60,8 @@ def _print(*args, **kwarg):
         
 def trace_text(e):
     """スタック・トレースのテキストを入手する"""
-    msg = "%s\n\n%s\n%s\n\n%s" % (e, "-" * 20, e.__class__, format_exc())
-    title = "%s - Internal Error" % e.__class__.__name__
+    msg = '%s\n\n%s\n%s\n\n%s' % (e, '-' * 20, e.__class__, format_exc())
+    title = '%s - Internal Error' % e.__class__.__name__
     return msg, title
 
 
@@ -77,7 +77,7 @@ threading.RLock() と同じような使い方ができる。
         self.config_type = None
         self.last_modified = None
         self.config_name = None
-        self.section = "default"
+        self.section = 'default'
         self.lock = threading.RLock()
 
     def __enter__(self):
@@ -87,9 +87,9 @@ threading.RLock() と同じような使い方ができる。
     def __exit__(self, t, v, tb):
         self.lock.release()
 
-    def value(self, key, default="", section=None):
+    def value(self, key, default='', section=None):
         """設定パラメータを入手する"""
-        return ""
+        return ''
 
     def key_list(self, section=None, prefix=None, suffix=None):
         """指定するセクションに定義されているキー名を入手する"""
@@ -97,8 +97,8 @@ threading.RLock() と同じような使い方ができる。
 
     def int_value(self, key, default=0, section=None):
         """数値の設定パラメータを入手する"""
-        val = self.value(key, "", section)
-        if val == "": return default
+        val = self.value(key, '', section)
+        if val == '': return default
         try:
             return int(val)
         except:
@@ -270,7 +270,7 @@ class INIPreference(Preference):
             if not inifile.lower().endswith('.ini'):
                 inifile += '.ini'
 
-        sys.stderr.write("INFO: %s loading ..\n" % inifile)
+        sys.stderr.write('INFO: %s loading ..\n' % inifile)
         with self:
             self.ini.read(inifile)
             self.config_name = inifile
@@ -294,7 +294,7 @@ class INIPreference(Preference):
         ydir = os.path.dirname(inifile)
         if not os.path.isdir(ydir): os.makedirs(ydir)
 
-        partfile = inifile + ".part"
+        partfile = inifile + '.part'
 
         if pyver == 2:
             for sec in self.ini.sections():
@@ -304,14 +304,14 @@ class INIPreference(Preference):
                         tt = _encode(tt)
                         self.ini.set(sec, key, tt)
 
-        with open(partfile, "w") as wf:
+        with open(partfile, 'w') as wf:
             self.ini.write(wf)
 
         if os.path.isfile(inifile): os.remove(inifile)
         os.rename(partfile, inifile)
         self.config_name = inifile
         if verbose:
-            sys.stderr.write("INFO: %s saved.\n" % inifile)
+            sys.stderr.write('INFO: %s saved.\n' % inifile)
 
         self.last_store = None
         return True
@@ -350,23 +350,23 @@ param: appName ロガー情報を定義した設定のセクション名
     from os.path import  dirname
 
     cn = app_name
-    home = os.path.expanduser("~")
-    logfile = pref.value("logfile", os.path.join(home, ui, "logs", "%s.log" % cn))
-    if logfile.find("%s") > 0: logfile = logfile % cn
-    sys.stderr.write("INFO: logged to %s\n" % logfile)
+    home = os.path.expanduser('~')
+    logfile = pref.value('logfile', os.path.join(home, ui, 'logs', '%s.log' % cn))
+    if logfile.find('%s') > 0: logfile = logfile % cn
+    sys.stderr.write('INFO: logged to %s\n' % logfile)
 
     for fn in [ logfile ]:
         ldir = dirname(fn)
         if not os.path.isdir(ldir):
             os.makedirs(ldir)
-            sys.stderr.write("INFO: log dir %s created.\n" % ldir)
+            sys.stderr.write('INFO: log dir %s created.\n' % ldir)
 
     log = logging.getLogger(cn)
     log.setLevel(DEBUG)
 
     from logging.handlers import TimedRotatingFileHandler
 
-    fmtText = pref.value("log-format",
+    fmtText = pref.value('log-format',
                 '%(levelname)s: %(message)s at %(asctime)s', cn)
     fmt = logging.Formatter(fmtText)
     sh = logging.StreamHandler() # コンソールログ
@@ -374,7 +374,7 @@ param: appName ロガー情報を定義した設定のセクション名
     sh.setLevel(INFO)
     log.addHandler(sh)
 
-    fmtText = pref.value("log-format",
+    fmtText = pref.value('log-format',
                 '%(asctime)s %(levelname)s: %(message)s', cn)
     fmt = logging.Formatter(fmtText)
 
@@ -395,14 +395,14 @@ param: appName ロガー情報を定義した設定のセクション名
 
 if readline.__doc__ and 'libedit' in readline.__doc__:
     # macos標準python向けの設定
-    readline.parse_and_bind("bind ^I rl_complete")
+    readline.parse_and_bind('bind ^I rl_complete')
 else:
-    readline.parse_and_bind("tab: complete")
+    readline.parse_and_bind('tab: complete')
 
 
 # 単語の区切り文字の除外
 delims = readline.get_completer_delims()
-for ch in "+-=,": delims = delims.replace(ch, "")
+for ch in '+-=,': delims = delims.replace(ch, '')
 readline.set_completer_delims(delims)
 
 try:
@@ -414,9 +414,9 @@ except:
     local_zone = None
     utc = None
 
-if sys.platform.startswith("java"):
-    if not hasattr(sys,"ps"):
-        sys.ps2 = ">"
+if sys.platform.startswith('java'):
+    if not hasattr(sys,'ps'):
+        sys.ps2 = '>'
 
 
 # 標準出力（CommandDispatcherにより変更されることがある）
@@ -463,7 +463,7 @@ def interrupt(th):
 def _en(tt): return tt.name if hasattr(tt, 'name') else tt
 
 def sleep(sec=1.0):
-    "指定する秒数だけ停止する"
+    '指定する秒数だけ停止する'
 
     th = threading.current_thread()        
 
@@ -481,11 +481,11 @@ def nextopt(args, params=None):
     "パラメータのあとにオプションを受け入れるための関数"
     while args:
         tn = args.pop(0)
-        if tn.startswith("-"): args.insert(0, tn); break
+        if tn.startswith('-'): args.insert(0, tn); break
         if params is not None: params.append(tn)
     return args
 
-def strftime(pattern="%Y-%m%d-%H%M", unixtime=None):
+def strftime(pattern='%Y-%m%d-%H%M', unixtime=None):
     tt = _dt.fromtimestamp(unixtime) if unixtime else _dt.now()
     return tt.strftime(pattern)
 
@@ -500,9 +500,9 @@ def alert(func):
             return result
         except Exception as e:
             if verbose:
-                log.exception("%s", e)
+                log.exception('%s', e)
             else:
-                log.error("%s (%s)", e, e.__class__.__name__)
+                log.error('%s (%s)', e, e.__class__.__name__)
             if not inteactive: return 2
 
     return _elog
@@ -547,7 +547,7 @@ class _MTSIO(object):
                 if sp and sp.poll() is not None:
                     try: sp.terminate()
                     except Exception as e:
-                        log.warn("%s while terminate subprocess.", e)
+                        log.warn('%s while terminate subprocess.', e)
         
     def __get__(self): return self
 
@@ -592,8 +592,8 @@ def cmd_args(func):
     @functools.wraps(func)
     def _elog(*args, **kwargs):
         "生じた例外を表示する"
-        cmd = func.__name__[3:] if func.__name__.startswith("do_") else \
-              func.__name__[:-4] if func.__name__.endswith("_cmd") else "unkown_cmd"
+        cmd = func.__name__[3:] if func.__name__.startswith('do_') else \
+              func.__name__[:-4] if func.__name__.endswith('_cmd') else 'unkown_cmd'
 
         sp = th = None
         outfile = infile = ''
@@ -643,12 +643,12 @@ def cmd_args(func):
                 if 1:
                     with sysout.init(infile, outfile, sp) as tt:
                         if report:
-                            log.info("[%s] start ..", th.name)
+                            log.info('[%s] start ..', th.name)
                         try:
                             result = func(self, argv, **kwargs)
                             if sp: result = tt.wait()
                             if report:
-                                log.info("[%s] done (rc:%s)", th.name, result)
+                                log.info('[%s] done (rc:%s)', th.name, result)
 
                         except GetoptError:
                             return self.do_help(cmd)
@@ -657,9 +657,9 @@ def cmd_args(func):
                             result = -1
                                 
                             if verbose:
-                                log.exception("[%s] %s (%s)", th.name, e, _en(e.__class__))
+                                log.exception('[%s] %s (%s)', th.name, e, _en(e.__class__))
                             else:
-                                log.error("[%s] %s (%s)", th.name, e, _en(e.__class__))
+                                log.error('[%s] %s (%s)', th.name, e, _en(e.__class__))
                             
                 rc_queue.put(result)
                 return result
@@ -687,9 +687,9 @@ def cmd_args(func):
         
         except Exception as e:
             if verbose:
-                log.exception("%s", e)
+                log.exception('%s', e)
             else:
-                log.error("%s (%s)", e, _en(e.__class__))
+                log.error('%s (%s)', e, _en(e.__class__))
             if not inteactive: return 2
                 
     return _elog
@@ -707,17 +707,17 @@ def find_handler(hn, defaultClassName=None, section=None):
     if not defaultClassName is None:
         saved_hn = hn
         hn = pref.value(hn, defaultClassName, section)
-        log.info("handler: %s: %s", saved_hn, hn)
+        log.info('handler: %s: %s', saved_hn, hn)
     else:
-        log.info("handler: %s", hn)
+        log.info('handler: %s', hn)
 
 
-    pn = hn.rfind(".")
+    pn = hn.rfind('.')
     if pn < 0:
         Handler = globals()[hn]
     else:
         __import__(hn[0:pn])
-        ms = hn.split(".")
+        ms = hn.split('.')
 
         module_name = ms[0]
         mod = __import__(module_name)
@@ -729,8 +729,8 @@ def find_handler(hn, defaultClassName=None, section=None):
         Handler = mod
         if last_mod:
             # ログや設定を差し込む
-            if hasattr(last_mod,"pref"): last_mod.pref = pref
-            if hasattr(last_mod,"log"): last_mod.log = log
+            if hasattr(last_mod,'pref'): last_mod.pref = pref
+            if hasattr(last_mod,'log'): last_mod.log = log
     return Handler
 
 findHandler = find_handler
@@ -740,7 +740,7 @@ class CommandDispatcher(cmd.Cmd):
     "サブクラスで対話的に呼び出すメソッドを定義する"
 
     # ユーザ入力を促すテキスト
-    prompt = "ready> "
+    prompt = 'ready> '
 
     def __init__(self):
         cmd.Cmd.__init__(self)
@@ -770,20 +770,20 @@ class CommandDispatcher(cmd.Cmd):
                 if pos < 0: pos = doc.find('\n\n')
                 if pos > 0: doc = doc[:pos]
 
-                #print >>self.stdout, "pos:", pos
+                #print >>self.stdout, 'pos:', pos
                 
-                self.stdout.write("%s\n" % str(doc))
+                self.stdout.write('%s\n' % str(doc))
                 return
         except AttributeError:
             raise
 
-        self.stdout.write("%s\n"%str(self.nohelp % (cmd,)))
+        self.stdout.write('%s\n'%str(self.nohelp % (cmd,)))
         return 2
 
     def do_EOF(self,line):
-        "exit interactive mode."
+        'exit interactive mode.'
         if self.eof_hook: self.eof_hook()
-        if verbose: syserr.write("done.\n")
+        if verbose: syserr.write('done.\n')
         return 1
 
     do_quit = do_EOF
@@ -799,7 +799,7 @@ class CommandDispatcher(cmd.Cmd):
 - clear screen
 """
         if not os.isatty(1): return
-        os.system("cls" if os.name == "nt" else "clear")
+        os.system('cls' if os.name == 'nt' else 'clear')
 
     @cmd_args
     def history_cmd(self, argv):
@@ -809,7 +809,7 @@ class CommandDispatcher(cmd.Cmd):
 """
         global verbose
         cmd = argv.pop(0)
-        mode = "show"
+        mode = 'show'
         dline = None
         params = []
         while argv:
@@ -825,20 +825,20 @@ class CommandDispatcher(cmd.Cmd):
 
             argv = nextopt(args, params)
 
-        if mode == "load":
+        if mode == 'load':
             fn = args[0] if len(args) else None
             load_history(fn)
 
-        elif mode == "save":
+        elif mode == 'save':
             fn = args[0] if len(args) else None
             save_history(fn)
 
-        elif mode == "show":
+        elif mode == 'show':
             cur = readline.get_current_history_length()
             for i in xrange(1, cur + 1):
                 print(i, readline.get_history_item(i))
 
-        elif mode == "delete":
+        elif mode == 'delete':
             pass
 
     def _show_threads(self):
@@ -958,7 +958,7 @@ class CommandDispatcher(cmd.Cmd):
                 elif opt in ('-c', '--change'):
                     last = pref.get_section()
                     pref.set_section(optarg)
-                    log.info("preference change from: %s", last)
+                    log.info('preference change from: %s', last)
                     return
                 elif opt in ('-e', '--edit'): op = 'edit'
                 elif opt in ('-i', '--import'): op = 'import'
@@ -981,16 +981,16 @@ class CommandDispatcher(cmd.Cmd):
         if al == 0 and op in ('drop', 'delete', 'list', 'edit', 'rename'):
             names = sorted(pref.get_section_names())
             show_items(names)
-            log.info("%s sections.", len(names) if names else 'no')
+            log.info('%s sections.', len(names) if names else 'no')
             return 1
 
         if op == 'drop':
             # セクションを指定して削除
             for sec in params:
                 if pref.delete_section(sec):
-                    log.info("%s droped.", sec)
+                    log.info('%s droped.', sec)
                 else:
-                    log.warn("no such section: %s", sec)
+                    log.warn('no such section: %s', sec)
             pref.save()
             return
 
@@ -999,21 +999,21 @@ class CommandDispatcher(cmd.Cmd):
             names = pref.key_list(sectionName)
             names.sort()
             for key in names:
-                tt = pref.value(key,"",sectionName)
-                print("%s=%s" % (key, tt))
+                tt = pref.value(key,'',sectionName)
+                print('%s=%s' % (key, tt))
             print()
-            log.info("%d entries in %s section.", len(names), section if section else 'default')
+            log.info('%d entries in %s section.', len(names), section if section else 'default')
             return
 
         '''
         if al < 2:
             key = args[0]
-            print >>sysout, "%s=%s" % (key, pref.value(key,"",section))
+            print >>sysout, '%s=%s' % (key, pref.value(key,'',section))
             return
 
         for key, value in zip(args[::2],args[1::2]):
             pref.store(key,value,sectionName)
-            print >>sysout, "%s=%s" % (key, pref.value(key,"",section))
+            print >>sysout, '%s=%s' % (key, pref.value(key,'',section))
 
         pref.save()
         '''
@@ -1024,7 +1024,7 @@ class CommandDispatcher(cmd.Cmd):
         "usage: export_preference [-lnv] <file> [section] .."
         # 設定の調整
         cmd = argv.pop(0)
-        opts, args = getopt(argv, "ls:vn")
+        opts, args = getopt(argv, 'ls:vn')
 
         show_sec_list = False
         verbose = False
@@ -1042,7 +1042,7 @@ class CommandDispatcher(cmd.Cmd):
             names = pref.get_section_names()
             names.sort()
             showList(names)
-            print("%d sections." % len(names), file=syserr)
+            print('%d sections.' % len(names), file=syserr)
             return
 
         pref_name = args[0]
@@ -1054,25 +1054,25 @@ class CommandDispatcher(cmd.Cmd):
         names = pref.get_section_names() if al < 2 else args[1:]
         for sec in names:
             if verbose:
-                print("[%s]" % (sec, ),file=err)
+                print('[%s]' % (sec, ),file=err)
 
             for key in pref.keyList(sec):
-                tt = pref.value(key, "", section=sec)
+                tt = pref.value(key, '', section=sec)
                 if verbose:
-                    print("%s = %s" % (key, tt), file=err)
+                    print('%s = %s' % (key, tt), file=err)
                 epref.store(key, tt, sec)
 
         if not dry_run:
             epref.save()
 
-        log.info("%s exprted.", pref_name)
+        log.info('%s exprted.', pref_name)
 
     @cmd_args
     def import_preference_cmd(self, argv):
         "usage: import_preference [-rna] <file> [section] .."
         # 設定の調整
         cmd = argv.pop(0)
-        opts, args = getopt(argv, "alrnv")
+        opts, args = getopt(argv, 'alrnv')
 
         dry_run = False
         replace_mode = False
@@ -1102,10 +1102,10 @@ class CommandDispatcher(cmd.Cmd):
         if args:
             for sec in args:
                 sect += 1
-                if verbose: print("[%s]" % sec, file=err)
+                if verbose: print('[%s]' % sec, file=err)
                 for key in epref.key_list(sec):
-                    tt = epref.value(key, "", section=sec)
-                    if verbose: print("%s=%s" % (key, tt))
+                    tt = epref.value(key, '', section=sec)
+                    if verbose: print('%s=%s' % (key, tt))
                     if not dry_run:
                         pref.store(key, tt, sec if load_section else None)
                 
@@ -1113,36 +1113,36 @@ class CommandDispatcher(cmd.Cmd):
             for sec in epref.get_section_names():
                 sect += 1
                 for key in epref.key_list(sec):
-                    tt = epref.value(key, "", section=sec)
-                    if verbose: print("%s=%s" % (key, tt))
+                    tt = epref.value(key, '', section=sec)
+                    if verbose: print('%s=%s' % (key, tt))
                     if not dry_run: pref.store(key, tt, sec)
                     
         else:
-            log.info("no sections import.")
+            log.info('no sections import.')
             return 0
 
         if not dry_run and sect > 0:
             pref.save()
-            log.info("%d sections imported.", sect)
+            log.info('%d sections imported.', sect)
 
     @cmd_args
     def rename_preference_cmd(self, argv):
         """usage: preference_rename old_section new_section
 """
         cmd = argv.pop(0)
-        opts, args = getopt(argv, "lv")
+        opts, args = getopt(argv, 'lv')
 
-        mode = "rename"
+        mode = 'rename'
 
         for opt, optarg in opts:
-            if opt == '-l': mode = "list"
+            if opt == '-l': mode = 'list'
             else: return self.do_help(cmd)
 
         
-        if len(args) < 2 or mode == "list":
+        if len(args) < 2 or mode == 'list':
             sec = pref.get_section_names()
             showList(sec)
-            log.info("%d sections.", len(sec))
+            log.info('%d sections.', len(sec))
             return
 
         pref.rename_section(args[0], args[1])
@@ -1183,7 +1183,7 @@ class CommandDispatcher(cmd.Cmd):
             finally: self.infh = None; #sysin = sys.stdin
             
         if line in ( 'quit', 'EOF' ): return 1
-        #if verbose: log.debug("rc: %s cmd:%s", stop, line)
+        #if verbose: log.debug('rc: %s cmd:%s', stop, line)
         return not inteactive
 
     @classmethod
@@ -1194,15 +1194,15 @@ class CommandDispatcher(cmd.Cmd):
         fqcn = cls.__name__
         argv = karg.get('argv', sys.argv)
         last_history = karg.get('last_history')
-        sn = cn = str(fqcn).split(".")[-1]
-        pos = fqcn.rfind(".")
+        sn = cn = str(fqcn).split('.')[-1]
+        pos = fqcn.rfind('.')
         mn = fqcn[0:pos] if pos > 0 else '__main__'
         mod = __import__(mn)
 
         global verbose, inteactive
         if 'DEBUG' in ENV: verbose = True
 
-        preference_name = os.path.expanduser("~/.%s/%s" % (appname, cn))
+        preference_name = os.path.expanduser('~/.%s/%s' % (appname, cn))
 
         opts, args = getopt(argv[1:], 'vp:D:', (
             'verbose', 'define=', 'preference=',
@@ -1213,11 +1213,11 @@ class CommandDispatcher(cmd.Cmd):
         for opt, optarg in opts:
             if opt in ('-v', '--verbose'): verbose = True
             elif opt in ('-D', '--define'):
-                key, value = optarg.split("=")
+                key, value = optarg.split('=')
                 defs.append((key, value))
             elif opt in ('-p', '--preference'):
                 preference_name = optarg
-                pt = optarg.find(":")
+                pt = optarg.find(':')
                 if pt > 0:
                     preference_name = optarg[:pt]
                     sn = optarg[pt+1:]
@@ -1234,12 +1234,12 @@ class CommandDispatcher(cmd.Cmd):
 
         if last_history: save_history(last_history)
 
-        home = os.path.expanduser("~")
-        history_file = pref.value("history-file", os.path.join(home, "logs", "%s.history" % cn))
+        home = os.path.expanduser('~')
+        history_file = pref.value('history-file', os.path.join(home, 'logs', '%s.history' % cn))
         if os.path.exists(history_file): load_history()
 
         if verbose:
-            pref.store("console-log-level", "DEBUG")
+            pref.store('console-log-level', 'DEBUG')
 
         log = get_logger(cn, pref=pref)
         mod.pref = pref
@@ -1259,19 +1259,19 @@ class CommandDispatcher(cmd.Cmd):
             
         if args:
             line = _arg_join(args)
-            if verbose: print("args", args, file=err)
+            if verbose: print('args', args, file=err)
             inteactive = False
             try:
                 rc = cmd.onecmd(line)
             except Exception as e:
                 rc = 3
                 elog = log.exception if verbose else log.error
-                elog("%s while execute\n %s", e, line)
+                elog('%s while execute\n %s', e, line)
             except KeyboardInterrupt:
                 rc = 4
-                syserr.write("Interrupted.\n")
+                syserr.write('Interrupted.\n')
 
-            if verbose: print("rc: ", rc, file=err)
+            if verbose: print('rc: ', rc, file=err)
             if last_history:
                 # カスケード呼びさしされている
                 history_file = last_history
@@ -1290,7 +1290,7 @@ class CommandDispatcher(cmd.Cmd):
                 break
             except KeyboardInterrupt:
                 # 割り込みをかけても中断させない
-                syserr.write("Interrupted.\n")
+                syserr.write('Interrupted.\n')
 
 
 
@@ -1303,7 +1303,7 @@ def split_line(line, useGlob=True, **opts):
     return args
 
 
-def glob(args, base=""):
+def glob(args, base=''):
     from glob import glob as _glob
 
     xargs = [ ]
@@ -1317,7 +1317,7 @@ def glob(args, base=""):
                 xargs.append(tt)
     else:
         #基準ディレクトリが指定された
-        prefix = os.path.join(base, "")
+        prefix = os.path.join(base, '')
         plen = len(prefix)
 
         for tt in args:
@@ -1333,13 +1333,13 @@ def glob(args, base=""):
 
 
 def expand_path(path):
-    dp = "./" if not path else os.path.expanduser(path) if path.startswith('~') else path
+    dp = './' if not path else os.path.expanduser(path) if path.startswith('~') else path
     return dp
 
 class _Local_path_handler:
     "ローカルファイルシステムのパスを入手する"
     def fetch_complete_list(self, path, fname):
-        dp = "./" if not path else os.path.expanduser(path) if path.startswith('~') else path
+        dp = './' if not path else os.path.expanduser(path) if path.startswith('~') else path
         dc = map(_decode, os.listdir(dp))
         fname = _decode(fname) if fname else ''
         return dc, fname
@@ -1349,9 +1349,9 @@ def complete_path(ignore, line, begin, end, **opts):
     "パスの補完"
     path_handler = opts.get('path_handler', _Local_path_handler())
     if debugout:
-        print("----------------------------", file=debugout)
-        print("complete_path:[%s]" % ignore, "opts:", opts, "line:", line, "begin:", begin, "end:", end, file=debugout)
-        if verbose: print("path_handler:", path_handler, file=debugout)
+        print('----------------------------', file=debugout)
+        print('complete_path:[%s]' % ignore, 'opts:', opts, 'line:', line, 'begin:', begin, 'end:', end, file=debugout)
+        if verbose: print('path_handler:', path_handler, file=debugout)
         debugout.flush()
 
     def _find_path(line, begin, end):
@@ -1364,7 +1364,7 @@ def complete_path(ignore, line, begin, end, **opts):
         path0 = line[begin:end]
 
         if path0.endswith('/'):
-            fname = ""
+            fname = ''
             path = path0
         elif '/' in path0:
             i = path0.rfind('/')
@@ -1379,7 +1379,7 @@ def complete_path(ignore, line, begin, end, **opts):
         path0, path, fname = _find_path(line, begin, end)
 
         if debugout:
-            print("target:", path0, "path:", path, "fname:", fname, file=debugout)
+            print('target:', path0, 'path:', path, 'fname:', fname, file=debugout)
             debugout.flush()
 
         dc, fname = path_handler.fetch_complete_list(path, fname)
@@ -1389,25 +1389,25 @@ def complete_path(ignore, line, begin, end, **opts):
             res = [name for name in dc if name.startswith(fname)]
         else:
             # 隠しファイルを対象から除く
-            res = [name for name in dc if not name.startswith(".")]
+            res = [name for name in dc if not name.startswith('.')]
 
         if debugout:
-            print(" ->", res, file=debugout)
+            print(' ->', res, file=debugout)
             debugout.flush()
 
         if sys.platform.startswith('win'):
             # Windowsではファイル名だけ返してもダメ
             if path == './': return res
             pre = path0[:path0.rfind('/')+1]
-            return [ "%s%s" % ( pre, tt) for tt in res ]
+            return [ '%s%s' % ( pre, tt) for tt in res ]
         
         return res
 
     except Exception as e :
         if debugout:
-            print(e, "while complete path", format_exc(), file=debugout)
+            print(e, 'while complete path', format_exc(), file=debugout)
         else:
-            log.exception("%s while complete path", e)
+            log.exception('%s while complete path', e)
 
 # 過去互換（スペルミス）
 complate_path = complete_path
@@ -1441,10 +1441,10 @@ def show_list(lst, outfh=None):
     cols = int(columns / ws)
     llen = len(lst)
     step = int((llen + (cols - 1)) / cols)
-#    print ws, "cols:", columns, "lines:", lines, "step:",step
+#    print ws, 'cols:', columns, 'lines:', lines, 'step:',step
     idx = 0
     row = 0
-    buf = ""
+    buf = ''
 
     while row < step:
         for nn in range(0, cols):
@@ -1455,22 +1455,22 @@ def show_list(lst, outfh=None):
         print(buf, file=outfh) #.encode('mbcs','replace')
         row += 1
         idx = row
-        buf = ""
+        buf = ''
 
 showList = show_list
 show_items = show_list
 
 
-history_file = "~/.history"
+history_file = '~/.history'
 
 def save_history(fname=None):
     if not fname: fname = history_file
     try:
         fname = expand_path(fname)
         readline.write_history_file(fname)
-        if verbose: print("INFO: save history to", fname, file=err)
+        if verbose: print('INFO: save history to', fname, file=err)
     except Exception as e:
-        print("WARN:", e, "while save history to", fname, file=err)
+        print('WARN:', e, 'while save history to', fname, file=err)
 
 
 def load_history(fname=None, clear=True):
@@ -1481,7 +1481,7 @@ def load_history(fname=None, clear=True):
         fname = expand_path(fname)
         readline.read_history_file(fname)
         history_file = os.path.abspath(fname)
-        if verbose: print("INFO: load history from", history_file, file=err)
+        if verbose: print('INFO: load history from', history_file, file=err)
     except:
         pass
 
@@ -1491,11 +1491,11 @@ def editor(text_file):
     editor = os.environ.get('EDITOR')
     if not editor:
         if sys.platform == 'win32':
-            editor = "notepad.exe"
-            #log.info("text_file: %s", text_file)
+            editor = 'notepad.exe'
+            #log.info('text_file: %s', text_file)
             #text_file = '"%s"' % text_file
         else:
-            editor = "vi"
+            editor = 'vi'
     rc = subprocess.call([editor, text_file], shell=False)
     return rc
 
@@ -1509,7 +1509,7 @@ def eval(cmd, trim=False):
 
 
 if __name__ == '__main__':
-    lst = os.listdir(".")
+    lst = os.listdir('.')
     showList(lst)
 #    print len(lst)
 #    print lst
