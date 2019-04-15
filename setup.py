@@ -36,6 +36,11 @@ setup(name='hitk',
         'Programming Language :: Python :: 3.7',
         'License :: OSI Approved :: MIT License',
         ],
+      entry_points = {
+        'console_scripts': [
+            'tkapp = hitk.launcher:run',
+        ],
+      },
       zip_safe=True,
      )
 
