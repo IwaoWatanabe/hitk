@@ -10,7 +10,18 @@ class MemoApp01(ui.App):
     tk.Text(base, width=column, height=rows,
             undo=1,maxundo=1000).pack(fill='both', expand=1)
 
+class TimerApp01(ui.App):
 
+  def create_widgets(self, base, rows=15, column=60):
+    var = ui.StringVar()
+    ui.Entry(base, textvariable=var).pack(fill='both', expand=1)
+    self.timer = var
+    self.cc.timer('timer', interval=0.5).start()
+
+  def perform(self, cmd, *args):
+    if 'timer' == cmd:
+      self.timer.set(ui.strftime("%Y-%m-%d %H:%M:%S"))
+    
     
 text_menu_items = [
   [ 'file;ファイル(&F)',
