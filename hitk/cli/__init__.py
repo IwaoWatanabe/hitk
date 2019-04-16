@@ -395,7 +395,7 @@ param: appName ロガー情報を定義した設定のセクション名
 
 # https://pewpewthespells.com/blog/osx_readline.html
 
-_rl_with_prefix = platform.startswith('win')
+_rl_with_prefix = sys.platform.startswith('win')
 
 if readline.__doc__ and 'libedit' in readline.__doc__:
     # macos標準python向けの設定
