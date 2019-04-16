@@ -149,20 +149,46 @@ def parse_geometry(geometry):
   if not m: raise ValueError("failed to parse geometry string")
   return map(int, m.groups())
 
-class _AppContext():
+
+class AppContext():
   ''' アプリケーションが利用する共通機能を提供するインスタンス '''
-  def show_info(msg, title=None):
+  def show_info(self, msg, title=None):
     '情報メッセージをポップアップダイアログで出現させる'
     pass
 
-  def show_error(msg, title=None):
+  def show_error(self, msg, title=None):
     'エラーメッセージをポップアップダイアログで出現させる'
     pass
 
+  def show_warnig(self, prompt, title='warning', **options):
+    '警告メッセージをポップアップダイアログで出現させる'
+    pass
+  
   def input_text(msg, title=None):
     '１行テキスト入力を促すダイアログを出現させる'
     pass
 
+  def ask_ok_cancel(self, prompt, title='ask', **options):
+    pass
+
+  def ask_yes_no(self, prompt, title='ask', **options):
+    pass
+
+  def ask_retry_cacnel(self, prompt, title='retry', **options):
+    pass
+
+  def ask_abort_retry_ignore(self, prompt, title='retry', **options):
+    pass
+
+  def ask_open_file(self, multiple=False, **options):
+    pass
+
+  def ask_save_file(self, **options):
+    pass
+
+  def ask_folder(self, **options):
+    pass
+  
   def execute(cmd, *closure, **kwargs):
     '別スレッドで処理を行う'
     pass
@@ -175,7 +201,48 @@ class _AppContext():
     'GUIスレッドで処理を行い、その完了を待つ'
     pass
 
+  def log(self, msg, *args, **kwargs):
+    pass
 
+  def find_dialog(self, name, AppClass, master=None, *opts, **kwd):
+    pass
+
+  def update_title(self, app, msg=None):
+    pass
+
+  def bind_proc(self, cmd, proc=None):
+    pass
+
+  def menu_proc(self, cmd, proc=None):
+    pass
+
+  def find_menu(self, name, entries=(), master=None, proc=None, font=None):
+    pass
+
+  def bind(self, sequence=None, func=None, add=None):
+    pass
+
+  def unbind(self, sequence, funcid=None):
+    pass
+
+  def timer(self, cmd, delay=None, proc=None, interval=None, repeat=False):
+    pass
+
+  def close(self):
+    pass
+
+  def hide(self):
+    pass
+  
+  def show(self):
+    pass
+
+  def dispose(self):
+    pass
+
+  def find_status_bar(self, base=None):
+    pass
+  
 def show_error(prompt, title='error', **options):
   """ エラーダイアログ表示 
 表示内容はクリップボードに設定される
@@ -610,8 +677,16 @@ def _top_bind(top):
   top.bind_class('TCombobox', '<Control-a>', _entry_all_select)
   top.bind_class('Text', '<Control-a>', _text_all_select)
 
+  
+class Timer():
+  def start(self):
+    pass
+  def stop(self):
+    pass
+  def restart(self):
+    pass
 
-class _TkTimer():
+class _TkTimer(Timer):
   '''コマンド付きのタイマー操作'''
   def __init__(self, cmd, delay=None, proc=None, interval=None, repeat=False):
     self.cmd = cmd
@@ -648,7 +723,7 @@ class _TkTimer():
     self.start()
 
     
-class _TkAppContext(_AppContext):
+class _TkAppContext(AppContext):
 
   def execute(self, cmd, *closure, **kwargs):
     """タスクをスレッド・プール経由で動作させる """
@@ -727,7 +802,7 @@ class _TkAppContext(_AppContext):
     _top_bind(top)
     return top
 
-  def create_dialog(self, AppClass, *opts, **kwd):
+  def _create_dialog(self, AppClass, *opts, **kwd):
     """ダイアログとして利用するMuClientをインスタンス化する
     AppClass のインスタンスが返る
     """
@@ -761,7 +836,7 @@ class _TkAppContext(_AppContext):
       if not isinstance(dig, AppClass):
         raise ValueError('dialog is not %s' % AppClass)
     else:
-      self._dialogs[name] = dig = self.create_dialog(AppClass, master=master, *opts, **kwd)
+      self._dialogs[name] = dig = self._create_dialog(AppClass, master=master, *opts, **kwd)
       
     return dig
   
@@ -797,12 +872,12 @@ class _TkAppContext(_AppContext):
     for app in reversed(self._apps):
       self.remove_client(app, in_destroy)
 
-  def perform(self, cmd, *args):
+  def _perform(self, cmd, *args):
     """メニューで選択したら呼び出される手続き"""
     trace(cmd, args, file=sys.stderr)
 
   def _find_menu_item(self, cmd, proc):
-    if not proc: proc = self.perform
+    if not proc: proc = self._perform
     cmd_key = '%s.%s' % (cmd, proc.__name__)
     if cmd_key in self._bind_map: return self._bind_map[cmd_key]
     mi = _MenuItem(cmd, proc)
@@ -822,7 +897,7 @@ class _TkAppContext(_AppContext):
     """ メニュー定義テキストよりメニュー・インスタンスを作成する
     param: entries メニュー項目を定義した配列
     """
-    if not proc: proc = self.perform
+    if not proc: proc = self._perform
     if not master: master = self.top
 
     if verbose: trace(name, entries)
@@ -1959,6 +2034,18 @@ def strftime(pattern="%Y-%m%d-%H%M", unixtime=None):
     tt = _dt.fromtimestamp(unixtime) if unixtime else _dt.now()
     return tt.strftime(pattern)
 
+
+try:
+  if platform == 'win32':
+    from .dnd01 import register_dnd_notify
+  else:
+    from .dnd02 import register_dnd_notify
+    
+except:
+  def register_dnd_notify(win, dnd_notify):
+    pass
+
+  
 if __name__ == '__main__':
     class EmptyApp(UIClient): pass
     class EmptyApp2(App): pass
