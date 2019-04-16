@@ -1214,9 +1214,11 @@ cp -R [-pn] <src> .. <dst-dir>
   @cli.cmd_args
   def sys_cmd(self, argv):
     "usage: sys"
+    import readline
     cli._print('sys.path', sys.path)
     cli._print('sys.platform', sys.platform)
     cli._print('sys.version', sys.version)
+    cli._print('readline', readline.__doc__)
       
   @cli.cmd_args
   def tsv_cmd(self, argv):
@@ -1260,32 +1262,12 @@ cp -R [-pn] <src> .. <dst-dir>
     if cli.verbose:
       log.info('%d time repeat.', ct)
     
-  complete_cd = complete_host
-  complete_lcd = complete_host
-  complete_lls = complete_host
-  complete_lhead = complete_host
-  complete_ls = complete_host
-  complete_lmkdir = complete_host
-  complete_lrmdir = complete_host
-  complete_cat = complete_host
-  complete_grep = complete_host
-  complete_find = complete_host
-  complete_tsv = complete_host
-  
-  complete_echo = complete_host
-  complete_cp = complete_host
-  complete_mv = complete_host
-    
-  do_pwd = lpwd_cmd
-  do_cd = lcd_cmd
-  do_ls = lls_cmd
-  do_mkdir = lmkdir_cmd
-  do_rmdir = lrmdir_cmd
-  do_head = lhead_cmd
-
-  complete_head = complete_host
-  complete_mkdir = complete_host
-  complete_rmdir = complete_host
+  pwd_cmd = lpwd_cmd
+  cd_cmd = lcd_cmd
+  ls_cmd = lls_cmd
+  mkdir_cmd = lmkdir_cmd
+  rmdir_cmd = lrmdir_cmd
+  head_cmd = lhead_cmd
 
 
 if __name__ == '__main__':

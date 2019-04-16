@@ -57,7 +57,9 @@ def _print(*args, **kwarg):
     else:
         print(file=out, **kwarg)
 
-        
+puts = _print
+
+
 def trace_text(e):
     """スタック・トレースのテキストを入手する"""
     msg = '%s\n\n%s\n%s\n\n%s' % (e, '-' * 20, e.__class__, format_exc())
@@ -393,9 +395,12 @@ param: appName ロガー情報を定義した設定のセクション名
 
 # https://pewpewthespells.com/blog/osx_readline.html
 
+_rl_with_prefix = platform.startswith('win')
+
 if readline.__doc__ and 'libedit' in readline.__doc__:
     # macos標準python向けの設定
     readline.parse_and_bind('bind ^I rl_complete')
+    _rl_with_prefix = True
 else:
     readline.parse_and_bind('tab: complete')
 
@@ -576,12 +581,12 @@ class _MTSIO(object):
         out = tl.fout
         return out.isatty() if out else tl.fin.isatty()
 
+    
 class InterruptedException(Exception):
     '''sleep中に interrupt が呼び出されたら生ずる例外
     あるいは　test_interrupted の呼び出しによっても生ずる
     '''
     pass
-
 
 
 sysin = sysout = out = _MTSIO()
@@ -736,7 +741,7 @@ def find_handler(hn, defaultClassName=None, section=None):
 findHandler = find_handler
 
 
-class CommandDispatcher(cmd.Cmd):
+class CommandDispatcher(cmd.Cmd, object):
     "サブクラスで対話的に呼び出すメソッドを定義する"
 
     # ユーザ入力を促すテキスト
@@ -752,12 +757,19 @@ class CommandDispatcher(cmd.Cmd):
             for sfx, pre in (
                 ('_cmd', 'do_'),
                 ('_comp', 'complete_'),
-                ('_help', 'help_'),
+                ('_desc', 'help_'),
             ):
                 if fn.endswith(sfx):
                     #print(pre + fn[:-len(sfx)], getattr(self.__class__, fn))
                     setattr(self.__class__, pre + fn[:-len(sfx)], getattr(self, fn))
                     break
+
+        for fn in self.get_names():
+            if not fn.endswith('_cmd'): continue
+            cmp = 'complete_%s' % fn[:-4]
+            if hasattr(self.__class__, cmp): continue
+            setattr(self.__class__, cmp, self.complete_local_files)
+            
         if debug: show_items(sorted(self.get_names()))
 
     def usage(self, cmd, opt=None):
@@ -857,7 +869,6 @@ class CommandDispatcher(cmd.Cmd):
         cmd = argv.pop(0)
         self._show_threads()
 
-    ts_cmd = threads_cmd
     jobs_cmd = threads_cmd
                     
     @cmd_args
@@ -996,10 +1007,10 @@ class CommandDispatcher(cmd.Cmd):
 
         if al < 1:
             # 登録済のデータ値を出力する
-            names = pref.key_list(sectionName)
+            names = pref.key_list(section)
             names.sort()
             for key in names:
-                tt = pref.value(key,'',sectionName)
+                tt = pref.value(key, '', section)
                 print('%s=%s' % (key, tt))
             print()
             log.info('%d entries in %s section.', len(names), section if section else 'default')
@@ -1148,19 +1159,8 @@ class CommandDispatcher(cmd.Cmd):
         pref.rename_section(args[0], args[1])
         pref.save()
 
-    #do_preference_import = do_import_preference
-    #do_preference_export = do_export_preference
-    #do_preference_rename = do_rename_preference
-
-    def complete_import_preference(self, *args):
+    def complete_local_files(self, *args):
         return complete_path(*args)
-
-    complete_export_preference = complete_import_preference
-    complete_rename_preference = complete_import_preference
-
-    #complete_preference_import = complete_import_preference
-    #complete_preference_export = complete_import_preference
-    #complete_preference_rename = complete_import_preference
 
     def precmd(self, line):
         #global sysin
@@ -1395,8 +1395,8 @@ def complete_path(ignore, line, begin, end, **opts):
             print(' ->', res, file=debugout)
             debugout.flush()
 
-        if sys.platform.startswith('win'):
-            # Windowsではファイル名だけ返してもダメ
+        if _rl_with_prefix:
+            # WindowsやmacOSはファイル名だけ返してもダメ
             if path == './': return res
             pre = path0[:path0.rfind('/')+1]
             return [ '%s%s' % ( pre, tt) for tt in res ]
@@ -1413,7 +1413,7 @@ def complete_path(ignore, line, begin, end, **opts):
 complate_path = complete_path
 
 
-complete_local_path = CommandDispatcher.complete_import_preference
+complete_local_path = CommandDispatcher.complete_local_files
 
 def mbcslen(tt):
     "画面にテキストを表示するときの表示幅を計算する"
