@@ -53,7 +53,7 @@ def _load_apps(apps='apps.txt'):
   if not os.path.exists(apps): return
   with open(apps) as fh:
     for tt in fh:
-      tt = tt.strip().replace('/', '.')
+      tt = tt.strip().replace('/', '.').replace('.py','')
       if not tt or tt.startswith('#'): continue
       try: _find_app(_find_module(tt), aplst)
       except ImportError:
