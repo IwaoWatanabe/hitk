@@ -16,7 +16,7 @@ class Entry01(ui.App):
     fr = Frame(base).pack(side='top')
     cap = 'エントリ(&E)'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
     
     var = self.input = StringVar()
     var.set('AAA')
@@ -29,7 +29,7 @@ class Entry01(ui.App):
     fr = Frame(base).pack(side='top')
     cap = 'パスワード(&P)'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
 
     var = self.passwd = StringVar()
     var.set('BBB')
@@ -54,12 +54,12 @@ class Entry01(ui.App):
     ent.bind('<Control-j>', self.bind_proc('combo'))
     cc.bind('<Alt-b>', lambda event, wi=ent: entry_focus(wi))
 
-    # -- readonly text
+  # -- readonly text
     self.msg = StringVar()
     ent = Entry(base, width=25, textvariable=self.msg, takefocus=0, state='readonly',
                 style='TLabel').pack(side='top', padx=3, pady=3)
 
-    # -- button
+  # -- button
     fr = Frame(base).pack(side='top')
     cap = 'ボタン(&A)'
     pos, label = item_caption(cap)

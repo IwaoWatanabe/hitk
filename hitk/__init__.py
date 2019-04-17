@@ -1214,6 +1214,10 @@ class App(UIClient):
     if not entries and hasattr(self, 'menu_items'): entries = self.menu_items
     return self.cc.find_menu(name, entries, master, proc, font)
 
+  def perform(self, cmd, *args):
+    """メニューで選択したら呼び出される手続き"""
+    trace(cmd, args, file=sys.stderr)
+  
   def close(self):
     self.cc.close()
 
