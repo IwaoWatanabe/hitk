@@ -6,5 +6,16 @@
 *~
 *.log
 *.gz
+*.zip
+*.ini
+*.db
+*.sqlite
+*.tsv
+*.csv
+*.rst
 dist
 .svn
+docs/
+work/
+build/
+dist/
