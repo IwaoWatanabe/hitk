@@ -107,7 +107,6 @@ sysin = sys.stdin
 
 syserr = err = sys.stderr
         
-
 def _en(tt): return tt.name if hasattr(tt, 'name') else tt
 
 
@@ -828,7 +827,7 @@ class CommandDispatcher(cmd.Cmd, object):
     @classmethod
     def run(cls, *modules, **karg):
         "start interactive mode."
-        logging.basicConfig()
+        #logging.basicConfig()
         global history_file, preference_file, pref, log
         from os import environ as ENV
         fqcn = cls.__name__

@@ -517,6 +517,345 @@ class _SelectList(ui.App):
     for label in items: dst.insert(END, label)
 
 
+class TreeDemo(ui.App):
+  """Treeview の振る舞いの確認"""
+    
+  menu_items = [
+    [ 'tree-shortcut;',
+      'add-child;子ノードを追加(&A)',
+      'insert-node;兄弟ノードを追加(&I)',
+      'rename;ノード名称変更(&R);F2',
+      'delete-node;ノードの削除(&D);delete',
+      '-',
+      'expand-all;ノードの展開(&E);ctrl-Right',
+      'collapse-all;ノードの折り畳み(&L);ctrl-Left',
+      '-',
+      'copy;クリップボードにテキストを取り込む(&P);ctrl-C',
+      'paste;クリップボードのテキストを取り込む(&P);ctrl-V',
+      'select-all;全て選択(&S)',
+      'clear-selection;選択解除(&N)',
+      '-',
+      [
+        'select-mode;&Selection Mode;',
+        '*sm.browse;&Browse',
+        '*sm.extended;&Extended',
+        '*sm.none;&None',
+      ],
+      [
+        'view;表示(&V);',
+        'show-selected-item; 選択したアイテムを表示(&I);',
+        'show-all-item; 全て表示(&A)',
+      ],
+      '-',
+      'close;閉じる(&C);ctrl-W',
+    ]
+  ]
+  
+  def perform(self, cmd, *args):
+    """メニュー選択により動作する機能"""
+    tree = self.tree
+    cc = self.cc
+
+    if cmd.startswith('sm.'):
+      sm = cmd[3:]
+      tree['selectmode'] = sm
+      cc.set_status('change selection mode: %s', sm)
+      return
+
+    elif 'add-child' == cmd:
+      # 子ノードを追加
+      msg = '追加する子ノード名を入力ください '
+      tt = cc.input_text(msg, 'add-child')
+      if not tt: return
+      parent = tree.focus()
+      iid = tree.insert(parent, END, text=tt)
+      tree.item(parent, open=1)
+      if not parent: tree.focus(iid)
+      return
+
+    elif 'insert-node' == cmd:
+      # 兄弟ノードを挿入
+      msg = '挿入するノード名を入力ください '
+      tt = cc.input_text(msg, 'insert-node')
+      if not tt: return
+      iid = tree.focus()
+      if not iid:
+        # ルートに追加
+        iid = tree.insert('', END, text=tt)
+        tree.focus(iid)
+        return
+      pos = tree.index(iid)
+      parent = tree.parent(iid)
+      tree.insert(parent, pos, text=tt)
+      return
+
+    elif 'rename' == cmd:
+      # ノード名称変更
+      iid = tree.focus()
+      if not iid: self.cc.show_warnig('ノードが選択されていません'); return
+      msg = '変更後のテキストを入力ください '
+      tt = cc.input_text(msg, 'rename-node')
+      if not tt: return
+      tree.item(iid,text=tt)
+
+    elif 'delete-node' == cmd:
+      # 選択したノードを削除
+      iid = tree.focus()
+      by = tree.bbox(iid)[1]+1 if iid else 0
+      items = reversed(tree.selection())
+      if items: tree.delete(*items)
+      iid = tree.identify_row(by)
+      if iid: tree.focus(iid)
+            
+    elif 'copy' == cmd:
+      selc = tree.selection()
+      sels = set(selc)
+      idc = self.indent_char
+      def _has_selected_node(items):
+        # 選択されたノードが子孫に存在するか診断する
+        if not items: return False
+        for iid in items:
+          if iid in sels: return True
+          children = tree.get_children(iid)
+          if _has_selected_node(children): return True
+        return False
+
+      def _has_selected_child(children):
+        # 選択されたノードが子に存在するか診断する
+        if not children: return False
+        for iid in children:
+          if iid in sels: return True
+        return False
+
+      def _node_text(iid, buf, ind=0):
+        # 選択されたノードだけをピックアップする
+        text = tree.item(iid, 'text')
+        buf.append('%s%s' % (idc * ind, text) if ind else text)
+        children = tree.get_children(iid)
+        if not children: return 
+        ind += 1
+        if _has_selected_node(children):
+          # 選択されている子ノードだけ複製
+          for ciid in children:
+            if ciid in sels:
+              _node_text(ciid,buf,ind)
+              sels.remove(ciid)
+        else:
+          # 子ノード全部を複製
+          for ciid in children:
+            _node_text(ciid,buf,ind)
+            
+      def _node_text_all(iid,buf,ind=0):
+        # 指定するノードとその子孫をピックアップする
+        text = tree.item(iid,'text')
+        buf.append('%s%s' % (idc * ind, text) if ind else text)
+        children = tree.get_children(iid)
+        if not children: return 
+        ind += 1
+        for ciid in children:
+          _node_text_all(ciid,buf,ind)
+
+      # --- ここからテキストの収集
+      buf = []
+      for iid in selc:
+        if not iid in sels: continue
+        children = tree.get_children(iid)
+        if _has_selected_node(children):
+          _node_text(iid, buf)
+        else:
+          _node_text_all(iid, buf)
+
+      text = '\n'.join(buf)
+      buf = None
+      if text:
+        tree.clipboard_clear()
+        tree.clipboard_append(text)
+        trace(text)
+
+    elif 'paste' == cmd:
+      text = tree.selection_get(selection='CLIPBOARD')
+      iid = tree.focus()
+      idx = tree.index(iid) if iid else END
+      parent = tree.parent(iid) if iid else ''
+      trace(text)
+      idc = self.indent_char
+
+      def _paste_node(parent,idx,textlist,ind=0):
+        children = tree.get_children(parent)
+        iid = children[-1] if idx == END else children[idx]
+                
+        while textlist:
+          tt = textlist[0]
+          if tt[ind] == idc:
+            cind = ind + 1
+            if tt[cind] == idc:
+              # 孫ノードがいる
+              _paste_node(iid,END,textlist,cind)
+              if not textlist: return
+            # 子ノードを追加
+            tt = textlist.pop(0)
+            tree.insert(iid, END, text = tt[cind:])
+            continue
+        
+          # 兄弟を追加
+          tt = textlist.pop(0)
+          iid = tree.insert(parent, idx, text = tt[ind:])
+          if idx != END: idx += 1
+
+      _paste_node(parent, idx, text.split('\n'))
+
+    elif 'select-all' == cmd:
+      # 全てのアイテムを選択する
+      def select_items(items):
+        if not items: return
+        tree.selection_add(items)
+        for iid in items:
+          children = tree.get_children(iid)
+          select_items(children)
+
+      children = tree.get_children()
+      select_items(children)
+
+    elif 'clear-selection' == cmd:
+      # 選択アイテムを解除する
+      items = tree.selection()
+      tree.selection_remove(items)
+      trace(items)
+      
+    elif 'show-selected-item' == cmd:
+      # 選択アイテムを表示する
+      items = tree.selection()
+      for it in items:
+        ti = tree.item(it)
+        trace(ti, type(ti))
+        ti = tree.item(it,'text')
+        trace(ti, type(ti))
+
+    elif 'show-all-item' == cmd:
+      def _show_items(items,indent=0):
+        if not items: return
+        pre = ' ' * indent
+        for iid in items:
+          ti = tree.item(iid,'text')
+          trace(pre, ti)
+          children = tree.get_children(iid)
+          show_items(children, indent + 1)
+
+      root_items = tree.get_children()
+      _show_items(root_items)
+
+    elif 'expand-all' == cmd:
+      #選択アイテムを展開する
+      def _expand_items(items):
+        if not items: return
+        for iid in items:
+          tree.item(iid,open=1)
+          children = tree.get_children(iid)
+          _expand_items(children)
+
+      items = tree.selection()
+      _expand_items(items)
+      return 'break'
+        
+    elif 'collapse-all' == cmd:
+      #選択アイテムを折り畳む
+      def _collapse_items(items):
+        if not items: return
+        for iid in items:
+          tree.item(iid,open=0)
+          children = tree.get_children(iid)
+          _collapse_items(children)
+
+      items = tree.selection()
+      _collapse_items(items)
+      return 'break'
+
+    elif 'close' == cmd:
+      cc.close()
+            
+  def __init__(self):
+    self.indent_char = '\t'
+
+  def __test_data(self, tree):
+    tree.insert('' , 0, text='Line 1')
+ 
+    id2 = tree.insert('', 1, 'dir2', text='Dir 2', open=True)
+    tree.insert(id2, 'end', 'dir 2', text='sub dir 1')
+    tree.insert(id2, 'end', 'dir 2a', text='sub dir 2')
+    id3 = tree.insert(id2, 'end', 'dir 2b', text='sub dir 3')
+    tree.insert(id2, 'end', 'dir 2c', text='sub dir 4')
+
+    for n in xrange(0,3):
+      tree.insert(id3, END, text='%d sub dir' % n)
+
+    ##alternatively:    
+    tree.insert('', 3, 'dir3', text='Dir 3', open=True)
+    for n in xrange(0,7):
+      tree.insert('dir3', 3, text='%d sub dir' % n)
+
+    tree.focus_set()
+    tree.focus(id3)
+
+  def create_widgets(self, base):
+    cc = self.cc
+    cc.find_status_bar()
+
+    if False:
+      fr = Frame(base)
+      fr.pack(side='top', fill='x')
+            
+      cap = '&Tree Editor'
+      cap = 'ツリーエディタ(&T)'
+      pos, label = item_caption(cap)
+      cap = Label(fr, text=label, underline=pos).pack(side='left')
+        
+    fr = Frame(base).pack(side='top', fill='both', expand=1)
+
+    tree = Treeview(fr, show='tree', takefocus=True, height=10,
+                    selectmode='extended')
+    self.tree = tree
+    ysb = Scrollbar(fr, orient='vertical', command=tree.yview)
+    ysb.pack(side='right', fill='y')
+    tree.configure(yscroll=ysb.set)
+    tree.pack(side='top', fill='both', expand=1)
+    tree.heading('#0', text='Path', anchor='w')
+
+    shortcut = self.find_menu('tree-shortcut')
+    ui.register_shortcut(tree, shortcut)
+
+    tree.timer = None
+    delay_msec = 600
+        
+    def _delay_proc(event):
+      # 遅延表示
+      if tree.timer: tree.after_cancel(tree.timer)
+      tiid = tree.focus()
+      if tiid:
+        tree.timer = tree.after(delay_msec, lambda wi=tree, iid=tiid:
+                                trace(wi.index(iid), wi.item(iid, 'text'), iid))
+            
+    tree.bind('<<TreeviewSelect>>', _delay_proc)
+    tree.bind('<<TreeviewOpen>>', _delay_proc)
+    tree.bind('<<TreeviewClose>>', _delay_proc)
+    
+    sm = cc.menu['select-mode']
+    sm.set('sm.extended')
+    self.selection_mode = sm
+
+    self.__test_data(tree)
+
+    for ev, cmd in (
+        ('<Control-c>', 'copy'),
+        ('<Control-Insert>', 'copy'),
+        ('<Control-v>', 'paste'),
+        ('<Shift-Insert>', 'paste'),
+        ('<Delete>', 'delete-node'),
+        ('<F2>', 'rename'),
+        ('<Control-w>', 'close'),
+        ('<Control-Right>', 'expand-all'),
+        ('<Control-Left>', 'collapse-all'),
+    ): tree.bind(ev, self.bind_proc(cmd))
+
 
 class _EmptyTreeData:
   """ツリーデータを入手する"""

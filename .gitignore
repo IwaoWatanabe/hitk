@@ -13,7 +13,6 @@
 *.tsv
 *.csv
 *.rst
-dist
 .svn
 docs/
 work/

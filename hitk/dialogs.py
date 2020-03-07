@@ -661,7 +661,6 @@ class FontDialog(ui.App):
     new_font = ui.find_font('%s-%d-%s-%s' % (family, abs(size), weight, slant))
     self.sample.cap.config(font=new_font)
        
-        
   def create_widgets(self, base):
     cc = self.cc
     fb = Frame(base).pack(side='top', fill='both', expand=1, padx=3, pady=3)
@@ -766,6 +765,7 @@ class FontDialog(ui.App):
     cap = '適用(&A)'
     pos, label = item_caption(cap)
     btn = Button(fr, text=label, underline=pos, command=self._do_apply).pack(side='left', padx=3, pady=3)
+    #cc.bind('<Alt-a>', lambda event, wi=btn: wi.focus())
 
     cap = '&Cancel'
     cap = '閉じる(&C)'

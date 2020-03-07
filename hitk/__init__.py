@@ -604,7 +604,7 @@ class _Toplevel(tk.Toplevel):
     
   def dispose(self):
     self.destroy()
-  
+    
   def wakeup(self):
     try:
       if self.wm_state() == 'iconic':
@@ -1413,7 +1413,11 @@ def _find_root(*args,**opts):
   global root, style
   try:
     if root: return root
-    root = tix.Tk(*args,**opts) if tix else tk.Tk(*args,**opts)
+    try:
+      root = tix.Tk(*args,**opts) if tix else tk.Tk(*args,**opts)
+    except:
+      root = tk.Tk(*args,**opts)
+      
     root.state('withdrawn')  # 普段から表示しない
 
   except TclError as e:
@@ -1435,7 +1439,7 @@ def setup_theme(wi):
       wi.configure(highlightbackground='systemBevelInactiveDark',
 #      wi.configure(highlightbackground='red',
                    borderwidth='1',
-                    highlightcolor='systemHighlight')
+                   highlightcolor='systemHighlight')
   return wi
 
 
