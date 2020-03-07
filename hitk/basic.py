@@ -1,29 +1,30 @@
 # -*- coding: utf-8 -*-
 
-""" tkuiの一連の基本機能を使ったサンプルコード
+""" hitkの一連の基本機能を使ったサンプルコード
 """
 
 from hitk import Button, Checkbutton, Combobox, Entry, Frame,\
-    Label, LabelFrame, Listbox, Notebook, Scrollbar, Text, StringVar, BooleanVar
+    Label, LabelFrame, Listbox, Notebook, Scrollbar, Text, Treeview, \
+    StringRef, BooleanRef
 
 from hitk import tk, ui, trace, END, set_tool_tip, item_caption, find_image, \
-    entry_focus, entry_store
+    entry_focus, entry_store, dialogs
 
 class BasicWidgetApp(ui.App):
   """ウィジェットの基本機能の確認"""
+  menu_bar = 'file:view:help'
 
-  menubar_items = [
-    'basic_menubar;',
+  menu_items = [
     [ 'file;ファイル(&F)',
-      'new;新規作成(&N);ctrl-N',
-      'open;ファイルを開く(&O) ..;ctrl-O',
+      'new;新規作成(&N);ctrl-n',
+      'open;ファイルを開く(&O) ..;ctrl-o',
       'opens;複数のファイルを選択して開く(&O) ..',
-      'save;ファイルに保存する(&S);ctrl-S',
+      'save;ファイルに保存する(&S);ctrl-s',
       'saveAs;名前を指定してファイルに保存する(&A) ..',
       'dir;ディレクトリを選択する(&D) ..;;idlelib/Icons/folder.gif',
       '-',
-      'close;閉じる(&C);ctrl-W',
-      'exit;アプリを終了する(&E);ctrl-Q',
+      'close;閉じる(&C);ctrl-w',
+      'exit;アプリを終了する(&E);ctrl-q',
       ],
     [ 'view;表示(&V)',
       '*aa;&AA',
@@ -37,7 +38,7 @@ class BasicWidgetApp(ui.App):
     [ 'help;ヘルプ(&H)',
       'about;このアプリについて(&A);;idlelib/Icons/python.gif',
       ],
-    ]
+  ]
   
   # ダイアログで利用するファイルのサフィックス情報。
   textFileTypes = [
@@ -59,13 +60,13 @@ class BasicWidgetApp(ui.App):
       self.buf.bell()
 
     elif 'input' == cmd:
-      text = self.input.get()
-      self.prompt.set(text)
+      text = self.input
+      self.prompt = text
 
     elif 'combo' == cmd:
-      text = self.sel.get()
-      self.prompt.set('%s selected.' % text)
-      entry_store(self.combo, text)
+      text = self.combo
+      self.prompt = '%s selected.' % text
+      entry_store(self.combo_ent, text)
 
     elif 'theme' == cmd:
       if event.widget.current(): # value #0 is not a theme
@@ -74,7 +75,7 @@ class BasicWidgetApp(ui.App):
         ui.style.theme_use(newtheme)
 
     elif 'open' == cmd:
-      flag = self.multi.get()
+      flag = self.multi
       tf = cc.ask_open_file(multiple=flag, filetypes=self.textFileTypes)
       if not tf: return
       trace(tf)
@@ -86,10 +87,10 @@ class BasicWidgetApp(ui.App):
       tf = cc.ask_folder()
       if not tf: return
       trace(tf)
-      self.dirinput.set(tf)
+      self.dirinput = tf
 
     elif 'close' == cmd:
-      self.close()
+      cc.close()
 
     elif 'info-msg' == cmd:
       cc.show_info('情報メッセージ表示')
@@ -118,17 +119,17 @@ class BasicWidgetApp(ui.App):
 
     elif 'calendar-popup' == cmd:
       parent = args[0].widget if args else self.cc.top
-      fd = ui.create_dialog(CalendarDialog, parent)
-      fd.open(self.datepickup)
+      fd = cc.find_dialog('calendar', dialogs.CalendarDialog, parent)
+      fd.open(cc.ref('datepickup'))
 
     elif 'fg_select' == cmd:
-      cn = self.fg_name.get()
+      cn = self.foreground
       ct = cc.ask_color(cn)
       if not ct or not ct[1]: return
       self._set_fg_input(ct[1])
 
     elif 'fg_color' == cmd:
-      cn = self.fg_name.get()
+      cn = self.foreground
       self._set_fg_input(cn)
 
     elif 'new' == cmd:
@@ -144,57 +145,44 @@ class BasicWidgetApp(ui.App):
   def _set_fg_input(self, cname):
     """色を設定する"""
   # http://wiki.tcl.tk/37701
-    self.fg_name.set(cname)
+    self.foreground = cname
     self.fg_sample.configure(background=cname if cname else 'systemWindowText')
-
-  def create_menu_bar(self):
-    """メニュー定義テキストよりメニュー・インスタンスを作成する"""
-    bar = self.find_menu(self.menubar_items)
-    return bar
 
   def release(self):
     self.cc.log('release called. %s', self)
 
-  def _create_basic_tab(self,tab):
+  prompt = StringRef()
+  input = StringRef()
+  passwd = StringRef()
+  combo = StringRef()
+  
+  def _create_basic_tab(self, tab):
     """Basicタブを作成 """
     fr = Frame(tab).pack(side='top')
-    blist = []
-    tab.blist = blist
 
-    var = StringVar()
-    self.prompt = var
-    prompt = 'メッセージ表示(変更できます)'
-    var.set(prompt)
-    cap = Label(tab, textvariable=var).pack(side='top', fill='x')
+    self.prompt = 'メッセージ表示(変更できます)'
+    lab = Label(tab, name='prompt').pack(side='top', fill='x')
 # -- entry
     fr = Frame(tab).pack(side='top')
 
     cap = 'I&nput'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
 
-    var = StringVar()
-    self.input = var
-    var.set('aaa')
-    ent = Entry(fr, width=25, textvariable=var).pack(side='left', padx=3, pady=3)
+    self.input = 'aaa'
+    ent = Entry(fr, width=25, name='input').pack(side='left', padx=3, pady=3)
     ent.bind('<Return>', self.bind_proc('input'))
-    ui.register_entry_popup(ent)
-    blist.append(('<Alt-n>', lambda event, wi=ent: entry_focus(wi)))
+    ent.label = lab
     entry_focus(ent)
 
 # -- passwod entry
     fr = Frame(tab).pack(side='top')
-
     cap = '&Password'
     pos, label = item_caption(cap)
     cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
 
-    var = StringVar()
-    var.set('bbb')
-    self.passwd = var
-    ent = Entry(fr, show='*', width=25, textvariable=var).pack(side='left', padx=3, pady=3)
-    ui.register_entry_popup(ent)
-    blist.append(('<Alt-p>', lambda event, wi=ent: entry_focus(wi)))
+    self.passwd = 'bbb'
+    ent = Entry(fr, show='*', width=25, name='passwd').pack(side='left', padx=3, pady=3)
 
 # -- button
 
@@ -215,27 +203,22 @@ class BasicWidgetApp(ui.App):
 
     cap = 'Co&mbobox'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
 
-    var = StringVar()
-    self.sel = var
-    ent = Combobox(fr, width=30, textvariable=var)
+    ent = Combobox(fr, width=30, name='combo').pack(side='left', padx=3, pady=3)
     ent['values'] = ( 'AA', 'BB', 'CC' )
     ent.current(1)
-    ent.pack(side='left', padx=3, pady=3)
-    self.combo = ent
+    self.combo_ent = ent
 
     ent.bind('<<ComboboxSelected>>', self.bind_proc('combo'))
     ent.bind('<Return>', self.bind_proc('combo'))
     ent.bind('<Control-j>', self.bind_proc('combo'))
-    ui.register_entry_popup(ent)
-    blist.append(('<Alt-m>', lambda event, wi=ent: entry_focus(wi)))
 
 # -- combobox(Readonly)
     fr = Frame(tab).pack(side='top')
     cap = 'Theme &Select'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
 
     themes = list(ui.style.theme_names())
     themes.insert(0, 'Pick a theme')
@@ -243,25 +226,29 @@ class BasicWidgetApp(ui.App):
     cmb.set(themes[0])
     cmb.pack(side='left', padx=3, pady=3)
     cmb.bind('<<ComboboxSelected>>', self.bind_proc('theme'))
-    blist.append(('<Alt-s>', lambda event, wi=ent: wi.focus_set()))
-
+    cmb.label = lab
+    
 # -- Text
     fr = Frame(tab).pack(side='top')
     cap = '&Text'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+
     buf = Text(fr, undo=1, maxundo=50, width=25, height=3).pack(side='left', padx=3, pady=3)
     self.buf = buf
-    ui.setup_theme(buf)
-    ui.register_text_popup(buf)
-    blist.append(('<Alt-t>', lambda event, wi=buf: wi.focus_set()))
-
+    lab.label_for = buf
+    
   def _create_list_tab(self, tab):
     """Listタブを作成 """
     sl = _SelectList()
     sl.create_widgets(tab)
     self.list = sl
 
+  multi = BooleanRef()
+  dirinput = StringRef()
+  datepickup = StringRef()
+  foreground = StringRef()
+  
   def _create_dialog_tab(self, tab):
     """ダイアログ・タブシートの作成 """
     blist = []
@@ -269,36 +256,25 @@ class BasicWidgetApp(ui.App):
 
     fr = Frame(tab).pack(side='top', fill='x', expand=0, padx=5, pady=5)
 
-    def invoke(btn): btn.focus(); btn.invoke()
-
     cap = '&Open'
     pos, label = item_caption(cap)
     btn = Button(fr, text=label, underline=pos, command=self.menu_proc('open')).pack(side='left', padx=3, pady=3)
-    blist.append(('<Alt-%s>' % cap[pos+1].lower(), lambda event, wi=btn: invoke(wi)))
 
-    var = BooleanVar()
-    var.set(1)
-    self.multi = var
-    cb = Checkbutton(fr, text='multiple', variable=var).pack(side='left', padx=3, pady=3)
+    self.multi = 1
+    cb = Checkbutton(fr, text='multiple', name='multi').pack(side='left', padx=3, pady=3)
 
     cap = '&Save'
     pos, label = item_caption(cap)
     btn = Button(fr, text=label, underline=pos, command=self.menu_proc('save')).pack(side='left', padx=3, pady=3)
-    blist.append(('<Alt-%s>' % cap[pos+1].lower(), lambda event, wi=btn: invoke(wi)))
 
  # -- ディレクトリ選択
 
     fr = Frame(tab).pack(side='top', fill='x', expand=0, padx=5, pady=5)
     cap = '&Directory'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
-
-    var = StringVar()
-    self.dirinput = var
-    ent = Entry(fr, width=25, textvariable=var).pack(side='left', padx=3, pady=3)
-    ui.register_entry_popup(ent)
-    blist.append(('<Alt-d>', lambda event, wi=ent: entry_focus(wi)))
-
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    ent = Entry(fr, width=25, name='dirinput').pack(side='left', padx=3, pady=3)
+    ent.label = lab
     btn = tk.Button(fr, text='..', command=self.menu_proc('dir')).pack(side='left', padx=3, pady=3)
 
 # ポップアップ
@@ -311,8 +287,6 @@ class BasicWidgetApp(ui.App):
       ):
         pos, label = item_caption(cap)
         btn = Button(fr, text=label, underline=pos, command=self.menu_proc(cmd))
-
-        blist.append(('<Alt-%s>' % cap[pos+1].lower(), lambda event, wi=btn: invoke(wi)))
         btn.pack(side='left', padx=3, pady=3)
 
     fr = LabelFrame(tab, text='confirm dialog').pack(side='top', fill='x', expand=0, padx=5, pady=5)
@@ -324,9 +298,6 @@ class BasicWidgetApp(ui.App):
         ):
         pos, label = item_caption(cap)
         btn = Button(fr, text=label, underline=pos, command=self.menu_proc(cmd))
-
-        if ui.platform != 'darwin':
-            blist.append(('<Alt-%s>' % cap[pos+1].lower(), lambda event, wi=btn: invoke(wi)))
         btn.pack(side='left', padx=3, pady=3)
 
 # -- カレンダ選択
@@ -335,34 +306,24 @@ class BasicWidgetApp(ui.App):
 
     cap = '&Calendar'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
-
-    var = StringVar()
-    self.datepickup = var
-    ent = Entry(fr, width=15, textvariable=var).pack(side='left', padx=3, pady=3)
-    ui.register_entry_popup(ent)
-    blist.append(('<Alt-c>', lambda event, wi=ent: entry_focus(wi)))
-
-    btn = tk.Button(fr, text='..',
-                    command=self.menu_proc('calendar-popup')).pack(side='left', padx=3, pady=3)
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    ent = Entry(fr, width=15, name='datepickup').pack(side='left', padx=3, pady=3)
+    ent.label = lab
+    btn = tk.Button(fr, text='..', command=self.menu_proc('calendar-popup')).pack(side='left', padx=3, pady=3)
 
  # -- 色選択
 
     fr = Frame(tab).pack(side='top', fill='x', expand=0, padx=5, pady=5)
     cap = '&Foreground'
     pos, label = item_caption(cap)
-    cap = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
+    lab = Label(fr, text=label, underline=pos).pack(side='left', padx=3)
 
-    cap = tk.Label(fr, text='   ').pack(side='left', padx=3)
-    self.fg_sample = cap
+    self.fg_sample = tk.Label(fr, text='   ').pack(side='left', padx=3)
 
-    var = StringVar()
-    self.fg_name = var
-    ent = Entry(fr, width=25, textvariable=var).pack(side='left', padx=3, pady=3)
-    ui.register_entry_popup(ent)
-    blist.append(('<Alt-f>', lambda event, wi=ent: entry_focus(wi)))
+    ent = Entry(fr, width=25, name='foreground').pack(side='left', padx=3, pady=3)
     ent.bind('<Return>', self.bind_proc('fg_color'))
-
+    ent.label = lab
+    
     btn = tk.Button(fr, text='..', command=self.menu_proc('fg_select')).pack(side='left', padx=3, pady=3)
     cn = 'black'
     self._set_fg_input(cn)
@@ -384,7 +345,7 @@ class BasicWidgetApp(ui.App):
     self.tsv_editor = comp = Memo()
     comp.client_context = self.cc
     comp.create_widgets(tab)
-    tkui.register_dnd_notify(comp.buf, self.dnd_notify)
+    ui.register_dnd_notify(comp.buf, self.dnd_notify)
 
   def dnd_notify(self, filenames, wi):
     for nn in filenames:
@@ -519,7 +480,6 @@ class _SelectList(ui.App):
     lb = Listbox(fr, height=rows, selectmode=tk.EXTENDED).pack(side='left', fill='both', expand=1)
     lb.bind('<Double-1>', self._right_selected)
     lb.bind('<Return>', self._right_selected)
-    ui.setup_theme(lb)
     
     sb = Scrollbar(fr).pack(side='left', fill='y', expand=0)
     sb.config(command=lb.yview)
@@ -556,6 +516,353 @@ class _SelectList(ui.App):
     src.delete(0, END)
     for label in items: dst.insert(END, label)
 
+
+
+class _EmptyTreeData:
+  """ツリーデータを入手する"""
+
+  def __init__(self, rows=1000, cols=10, **opts):
+    self.rows = rows
+
+
+    
+class TreeDemo(ui.App):
+  """Treeview の振る舞いの確認"""
+    
+  menu_items = [
+    [ 'tree-shortcut;',
+      'add-child;子ノードを追加(&A)',
+      'insert-node;兄弟ノードを追加(&I)',
+      'rename;ノード名称変更(&R);F2',
+      'delete-node;ノードの削除(&D);delete',
+      '-',
+      'expand-all;ノードの展開(&E);ctrl-Right',
+      'collapse-all;ノードの折り畳み(&L);ctrl-Left',
+      '-',
+      'copy;クリップボードにテキストを取り込む(&P);ctrl-c',
+      'paste;クリップボードのテキストを取り込む(&P);ctrl-v',
+      'select-all;全て選択(&S)',
+      'clear-selection;選択解除(&N)',
+      '-',
+      [
+        'select-mode;&Selection Mode;',
+        '*sm.browse;&Browse',
+        '*sm.extended;&Extended',
+        '*sm.none;&None',
+      ],
+      [
+        'view;表示(&V);',
+        'show-selected-item; 選択したアイテムを表示(&I);',
+        'show-all-item; 全て表示(&A)',
+      ],
+      '-',
+      'close;閉じる(&C);ctrl-w',
+    ]
+  ]
+  
+  def perform(self, cmd, *args):
+    """メニュー選択により動作する機能"""
+    tree = self.tree
+    cc = self.cc
+
+    if cmd.startswith('sm.'):
+      sm = cmd[3:]
+      tree['selectmode'] = sm
+      cc.set_status('change selection mode: %s', sm)
+      return
+
+    elif 'add-child' == cmd:
+      # 子ノードを追加
+      msg = '追加する子ノード名を入力ください '
+      tt = cc.input_text(msg, 'add-child')
+      if not tt: return
+      parent = tree.focus()
+      iid = tree.insert(parent, END, text=tt)
+      tree.item(parent, open=1)
+      if not parent: tree.focus(iid)
+      return
+
+    elif 'insert-node' == cmd:
+      # 兄弟ノードを挿入
+      msg = '挿入するノード名を入力ください '
+      tt = cc.input_text(msg, 'insert-node')
+      if not tt: return
+      iid = tree.focus()
+      if not iid:
+        # ルートに追加
+        iid = tree.insert('', END, text=tt)
+        tree.focus(iid)
+        return
+      pos = tree.index(iid)
+      parent = tree.parent(iid)
+      tree.insert(parent, pos, text=tt)
+      return
+
+    elif 'rename' == cmd:
+      # ノード名称変更
+      iid = tree.focus()
+      if not iid: self.cc.show_warnig('ノードが選択されていません'); return
+      msg = '変更後のテキストを入力ください '
+      tt = cc.input_text(msg, 'rename-node')
+      if not tt: return
+      tree.item(iid,text=tt)
+
+    elif 'delete-node' == cmd:
+      # 選択したノードを削除
+      iid = tree.focus()
+      by = tree.bbox(iid)[1]+1 if iid else 0
+      items = reversed(tree.selection())
+      if items: tree.delete(*items)
+      iid = tree.identify_row(by)
+      if iid: tree.focus(iid)
+            
+    elif 'copy' == cmd:
+      # 選択されたノードのテキストをクリップボードに複製
+      selc = tree.selection()
+      sels = set(selc)
+      idc = self.indent_char
+
+      def _has_selected_node(items):
+        # 選択されたノードが子孫に存在するか診断する
+        if not items: return False
+        for iid in items:
+          if iid in sels: return True
+          children = tree.get_children(iid)
+          if _has_selected_node(children): return True
+        return False
+
+      def _has_selected_child(children):
+        # 選択されたノードが子に存在するか診断する
+        if not children: return False
+        for iid in children:
+          if iid in sels: return True
+        return False
+
+      def _node_text(iid, buf, ind=0):
+        # 選択されたノードだけをピックアップする
+        text = tree.item(iid, 'text')
+        buf.append('%s%s' % (idc * ind, text) if ind else text)
+        children = tree.get_children(iid)
+        if not children: return 
+        ind += 1
+        if _has_selected_node(children):
+          # 選択されている子ノードだけ複製
+          for ciid in children:
+            if ciid in sels:
+              _node_text(ciid,buf,ind)
+              sels.remove(ciid)
+        else:
+          # 子ノード全部を複製
+          for ciid in children:
+            _node_text(ciid,buf,ind)
+            
+      def _node_text_all(iid,buf,ind=0):
+        # 指定するノードとその子孫をピックアップする
+        text = tree.item(iid,'text')
+        buf.append('%s%s' % (idc * ind, text) if ind else text)
+        children = tree.get_children(iid)
+        if not children: return 
+        ind += 1
+        for ciid in children:
+          _node_text_all(ciid,buf,ind)
+
+      # --- ここからテキストの収集
+      buf = []
+      for iid in selc:
+        if not iid in sels: continue
+        children = tree.get_children(iid)
+        if _has_selected_node(children):
+          _node_text(iid, buf)
+        else:
+          _node_text_all(iid, buf)
+
+      text = '\n'.join(buf)
+      buf = None
+      if text:
+        tree.clipboard_clear()
+        tree.clipboard_append(text)
+        trace(text)
+
+    elif 'paste' == cmd:
+      text = tree.selection_get(selection='CLIPBOARD')
+      iid = tree.focus()
+      idx = tree.index(iid) if iid else END
+      parent = tree.parent(iid) if iid else ''
+      trace(text)
+      idc = self.indent_char
+
+      def _paste_node(parent,idx,textlist,ind=0):
+        children = tree.get_children(parent)
+        iid = children[-1] if idx == END else children[idx]
+                
+        while textlist:
+          tt = textlist[0]
+          if tt[ind] == idc:
+            cind = ind + 1
+            if tt[cind] == idc:
+              # 孫ノードがいる
+              _paste_node(iid,END,textlist,cind)
+              if not textlist: return
+            # 子ノードを追加
+            tt = textlist.pop(0)
+            tree.insert(iid, END, text = tt[cind:])
+            continue
+        
+          # 兄弟を追加
+          tt = textlist.pop(0)
+          iid = tree.insert(parent, idx, text = tt[ind:])
+          if idx != END: idx += 1
+
+      _paste_node(parent, idx, text.split('\n'))
+
+    elif 'select-all' == cmd:
+      # 全てのアイテムを選択する
+      def select_items(items):
+        if not items: return
+        tree.selection_add(items)
+        for iid in items:
+          children = tree.get_children(iid)
+          select_items(children)
+
+      children = tree.get_children()
+      select_items(children)
+
+    elif 'clear-selection' == cmd:
+      # 選択アイテムを解除する
+      items = tree.selection()
+      tree.selection_remove(items)
+      trace(items)
+      
+    elif 'show-selected-item' == cmd:
+      # 選択アイテムを表示する
+      items = tree.selection()
+      for it in items:
+        ti = tree.item(it)
+        trace(ti, type(ti))
+        ti = tree.item(it,'text')
+        trace(ti, type(ti))
+
+    elif 'show-all-item' == cmd:
+      def _show_items(items,indent=0):
+        if not items: return
+        pre = ' ' * indent
+        for iid in items:
+          ti = tree.item(iid,'text')
+          trace(pre, ti)
+          children = tree.get_children(iid)
+          show_items(children, indent + 1)
+
+      root_items = tree.get_children()
+      _show_items(root_items)
+
+    elif 'expand-all' == cmd:
+      #選択アイテムを展開する
+      def _expand_items(items):
+        if not items: return
+        for iid in items:
+          tree.item(iid,open=1)
+          children = tree.get_children(iid)
+          _expand_items(children)
+
+      items = tree.selection()
+      _expand_items(items)
+      return 'break'
+        
+    elif 'collapse-all' == cmd:
+      #選択アイテムを折り畳む
+      def _collapse_items(items):
+        if not items: return
+        for iid in items:
+          tree.item(iid,open=0)
+          children = tree.get_children(iid)
+          _collapse_items(children)
+
+      items = tree.selection()
+      _collapse_items(items)
+      return 'break'
+
+    elif 'close' == cmd:
+      cc.close()
+            
+  def __init__(self):
+    self.indent_char = '\t'
+
+  def __test_data(self, tree):
+    tree.insert('' , 0, text='Line 1')
+ 
+    id2 = tree.insert('', 1, 'dir2', text='Dir 2', open=True)
+    tree.insert(id2, 'end', 'dir 2', text='sub dir 1')
+    tree.insert(id2, 'end', 'dir 2a', text='sub dir 2')
+    id3 = tree.insert(id2, 'end', 'dir 2b', text='sub dir 3')
+    tree.insert(id2, 'end', 'dir 2c', text='sub dir 4')
+
+    for n in xrange(0,3):
+      tree.insert(id3, END, text='%d sub dir' % n)
+
+    ##alternatively:    
+    tree.insert('', 3, 'dir3', text='Dir 3', open=True)
+    for n in xrange(0,7):
+      tree.insert('dir3', 3, text='%d sub dir' % n)
+
+    tree.focus_set()
+    tree.focus(id3)
+
+  def create_widgets(self, base):
+    cc = self.cc
+    cc.find_status_bar()
+
+    if False:
+      fr = Frame(base)
+      fr.pack(side='top', fill='x')
+            
+      cap = '&Tree Editor'
+      cap = 'ツリーエディタ(&T)'
+      pos, label = item_caption(cap)
+      cap = Label(fr, text=label, underline=pos).pack(side='left')
+        
+    fr = Frame(base).pack(side='top', fill='both', expand=1)
+
+    tree = Treeview(fr, show='tree', takefocus=True, height=10,
+                    selectmode='extended')
+    self.tree = tree
+    ysb = Scrollbar(fr, orient='vertical', command=tree.yview)
+    ysb.pack(side='right', fill='y')
+    tree.configure(yscroll=ysb.set)
+    tree.pack(side='top', fill='both', expand=1)
+    tree.heading('#0', text='Path', anchor='w')
+
+    shortcut = self.find_menu('tree-shortcut')
+    ui.register_shortcut(tree, shortcut)
+
+    tree.timer = None
+    delay_msec = 600
+        
+    def _delay_proc(event):
+      # 遅延表示
+      if tree.timer: tree.after_cancel(tree.timer)
+      tiid = tree.focus()
+      if tiid:
+        tree.timer = tree.after(delay_msec, lambda wi=tree, iid=tiid:
+                                trace(wi.index(iid), wi.item(iid, 'text'), iid))
+            
+    tree.bind('<<TreeviewSelect>>', _delay_proc)
+    tree.bind('<<TreeviewOpen>>', _delay_proc)
+    tree.bind('<<TreeviewClose>>', _delay_proc)
+    
+    sm = cc.menu['select-mode']
+    sm.set('sm.extended')
+    self.selection_mode = sm
+
+    self.__test_data(tree)
+
+    for ev, cmd in (
+        ('<\Control-Insert>', 'copy'),
+        ('<Shift-Insert>', 'paste'),
+        ('<Delete>', 'delete-node'),
+        ('<F2>', 'rename'),
+        ('<\Control-Right>', 'expand-all'),
+        ('<\Control-Left>', 'collapse-all'),
+    ): tree.bind(ev, self.bind_proc(cmd))
 
 
 if __name__ == '__main__':
