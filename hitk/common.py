@@ -25,7 +25,7 @@ else:
 
 verbose = os.environ.get("DEBUG", False)
 
-log = logging.getLogger(__name__)
+log = None
 
 
 def trace(msg, *args, **kwarg):
@@ -425,6 +425,7 @@ def get_logger(app_name, pref, ui=""):
 param: appName ロガー情報を定義した設定のセクション名
 """
     global log
+  
     if log: return log
     from os.path import  dirname
 

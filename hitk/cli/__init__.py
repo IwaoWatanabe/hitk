@@ -875,13 +875,15 @@ class CommandDispatcher(cmd.Cmd, object):
         if last_history: save_history(last_history)
 
         home = os.path.expanduser('~')
-        history_file = pref.value('history-file', os.path.join(home, 'logs', '%s.history' % cn))
-        if os.path.exists(history_file): load_history()
 
         if verbose:
             pref.store('console-log-level', 'DEBUG')
 
         log = get_logger(cn, pref=pref)
+
+        history_file = pref.value('history-file', os.path.join(home, 'logs', '%s.history' % cn))
+        if os.path.exists(history_file): load_history()
+        
         mod.pref = pref
         mod.log = log
 
