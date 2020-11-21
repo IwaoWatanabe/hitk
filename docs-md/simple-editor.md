@@ -30,7 +30,7 @@ Windows においては「メモ帳」のキーバインドに似ています。
 
 macOSではコピーと貼り付けは ⌘C や ⌘Vになります。
 Windows では Ctrl-C や Ctrl-V ですね。
-詳細は　Appendix IV tk.Textのキーバインド　を参照ください。　　
+詳細は　[Appendix IV tk.Textのキーバインド](AppendixIV.md)　を参照ください。　　
 
 実は ttkには複数行テキストを編集するウィジェットは含まれておらず、
 代わりに tk に含まれる Textウィジェットを利用します。

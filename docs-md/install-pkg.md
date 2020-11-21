@@ -27,13 +27,15 @@ $ pip install hitk --user
 システムに組み込まないで、ユーザアカウントに組み込むときに指定します。
 
 古い python ではそのままでは pip が 利用できないケースもありますが、
-「Appendix II pipの導入」を参考に導入してみてください。
+「[Appendix II pipの導入](AppendixII.md)」を参考に導入してみてください。
 
 ```shell script
 $ python -m hitk hello
 ```
 
 とタイプして、次のようなダイアログが出現したら導入成功です。
+
+![HelloAppの画像](HelloApp.png)
 
 ## ソースコードの入手
 
@@ -45,7 +47,7 @@ $ git clone https://github.com/IwaoWatanabe/hitk.git
 ```
 
 git のコマンドラインが利用できない場合は
-Appendix V git コマンドの入手と基本操作　を参考に入手して設定してみてください。
+[Appendix V git コマンドの入手と基本操作](AppendixV.md)　を参考に入手して設定してみてください。
 
 ## 開発者インストール
 

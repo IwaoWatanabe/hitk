@@ -19,4 +19,4 @@ Tkinterが利用できるプラットフォームは C言語で作成されて�
 - Widows 10 Python 2.7. 3.6
 
 それぞれのプラットフォームにおけるPython の導入手順は
-「Appendix I Pythonの導入」を確認してください。
+「[Appendix I Pythonの導入](AppendixI.md)」を確認してください。
